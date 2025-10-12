@@ -5,8 +5,8 @@ Minimal working example using DJI Cloud API.
 ## Setup
 
 1. Install dependencies: `pip install -r ./requirements.txt`
-2. Install docker and setup `emqx` (MQTT server)
-    - `docker run -d --name emqx -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083  emqx:5.0.20`
+2. Install docker and setup `emqx` (MQTT server)   --network
+    - `docker run -d --name emqx --network host -p 1883:1883 -p 8083:8083 -p 8084:8084 -p 8883:8883 -p 18083:18083 emqx:5.0.20`
     - open http://localhost:18083/ to setup admin account l: `admin` p: `public`
     - create user account (I am not sure whether it is needed, you can use admin account)
 3. Connect your DJI Smart Controller to the same local network your PC is in (in case of laptop I recommend creating local hotspot).

@@ -13,13 +13,26 @@ host_addr = os.environ["HOST_ADDR"]
 
 
 # The callback for when the client receives a CONNACK response from the server.
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, rc, properties=None):
     print("Connected with result code " + str(rc))
 
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     client.subscribe("sys/#")
     client.subscribe("thing/#")
+
+    test_message = {
+        "seq": 1,
+        "method": "stick_control",
+        "data": {
+            "roll": 1024,
+            "pitch": 1024,
+            "throttle": 1024,
+            "yaw": 1024
+        }
+    }
+    client.publish("thing/product/9N9CN8400164WH/drc/down", payload=json.dumps(test_message))
+    print("✅ 测试消息已发布到 thing/product/9N9CN8400164WH/drc/down")
 
 # Print interesting bits from message
 def handle_osd_message(message: dict):
