@@ -18,8 +18,9 @@ def on_connect(client, userdata, flags, rc, properties=None):
 
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    client.subscribe("sys/#")
-    client.subscribe("thing/#")
+    # client.subscribe("sys/#")
+    # client.subscribe("thing/#")
+    client.subscribe("thing/product/9N9CN8400164WH/drc/down")
 
     test_message = {
         "seq": 1,
@@ -58,8 +59,11 @@ def handle_osd_message(message: dict):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-    print("📨Got msg: " + msg.topic)
     message = json.loads(msg.payload.decode("utf-8"))
+    method = message.get("method")
+    if(method != "heart_beat" and method == "stick_control"):
+        print("📨Got msg: " + msg.topic , method)
+        pprint.pprint(message)
     if msg.topic.endswith("status"):
         if message["method"] != "update_topo":
             return

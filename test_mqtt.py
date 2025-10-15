@@ -9,14 +9,56 @@ import paho
 import paho.mqtt.client as mqtt
 import uuid
 import argparse
+from geopy.distance import geodesic
+from geopy.point import Point
 
 DEBUG_FLAG = False
 
 # gateway_sn = "1581F7FVC257X00D6KZ2" 飞机
-gateway_sn = "9N9CN8400164WH"   #遥控器
+# gateway_sn = "9N9CN8400164WH"   #遥控器 2
+gateway_sn = "9N9CN2J0012CXY"   #遥控器 1
+
+lon = 0
+lat = 0
 
 host_addr = os.environ["HOST_ADDR"]
 drc_test_list = [1680, 365]  # roll, pitch, throttle, yaw
+
+def move_coordinates(lat, lon, distance_east, distance_north):
+    """
+    根据当前经纬度移动指定距离
+    
+    Args:
+        lat: 当前纬度（度）
+        lon: 当前经度（度）
+        distance_east: 向东移动距离（米），负值表示向西
+        distance_north: 向北移动距离（米），负值表示向南
+    
+    Returns:
+        tuple: (新纬度, 新经度)
+    """
+    # 创建起点
+    start = Point(latitude=lat, longitude=lon)
+    
+    # 先向北移动
+    if distance_north != 0:
+        bearing_north = 0 if distance_north > 0 else 180
+        point_north = geodesic(kilometers=abs(distance_north)/1000).destination(
+            start, bearing=bearing_north
+        )
+    else:
+        point_north = start
+    
+    # 再向东移动
+    if distance_east != 0:
+        bearing_east = 90 if distance_east > 0 else 270
+        final_point = geodesic(kilometers=abs(distance_east)/1000).destination(
+            point_north, bearing=bearing_east
+        )
+    else:
+        final_point = point_north
+    
+    return final_point.latitude, final_point.longitude
 
 def generate_uuid():
     """生成标准UUID格式的随机ID"""
@@ -46,13 +88,12 @@ class DJIMQTTClient:
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
         print("Connected with result code " + str(rc))
-        client.subscribe("thing/product/9N9CN8400164WH/osd")
-        # client.subscribe("sys/#")
-        # client.subscribe("thing/#")
         client.subscribe(f"thing/product/{gateway_sn}/drc/up")
+        client.subscribe(f"thing/product/{gateway_sn}/events")
+        client.subscribe(f"thing/product/{gateway_sn}/services_reply")
         
         # 连接成功后发布欢迎消息
-        self.publish_test_message("连接成功欢迎消息")
+        self.publish_test_message("连接成功欢迎消息")   
         # 启动键盘监听
         self.start_keyboard_listener()
         # 启动DRC心跳线程（1Hz）
@@ -94,6 +135,7 @@ class DJIMQTTClient:
 
     def ptint_menu(self):
             print("\n" + "="*50)
+            print("="*50)
             print("🎮 键盘控制菜单:")
             print("  p - 发布测试消息到 sys/test")
             print("  a - 请求授权云端控制消息")
@@ -103,8 +145,12 @@ class DJIMQTTClient:
             print("  h - 控制飞机上升3秒")
             print("  w - 控制飞机前进3秒")
             print("  s - 控制飞机后退3秒")
-            print("  e - DRC初始状态订阅")
+            print("  e - 重置云台")
+            print("  r - 云台控制")
+            print("  i - 一键起飞")
+            print("  u - 飞向目标点")
             print("  t - 测试解锁杆位")
+            print("  d - 显示/关闭信息打印")
             print("  q - 退出程序")
             print("="*50)
     
@@ -129,7 +175,7 @@ class DJIMQTTClient:
                             total_messages = int(duration * frequency)  # 10条消息
                             kind = 1
                             # roll: 1680 pitch: 360 throttle: 360 yaw: 360
-                            print(f"📤 测试摇杆控制类型 ", kind, "roll:", 1680, "pitch:", 
+                            print(f"📤 杆位解锁无人机 ", kind, "roll:", 1680, "pitch:", 
                                     365, "throttle:", 365, "yaw:", 365)
                             print("--"*20)
                             kind += 1
@@ -381,13 +427,94 @@ class DJIMQTTClient:
                         print(f"✅ 测试消息已发布到 thing/product/{gateway_sn}/services")
 
                     elif user_input == 'e':
+                        print(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
+                        user_input = input("请输入重置模式类型: ").strip()
+                        user_input_num = int(user_input)
+                        if user_input_num not in [0, 1, 2, 3]:
+                            print("无效输入,请输入 0,1,2,3")
+                            continue
                         test_message = {
-                            "data": {},
-                            "method": "drc_initial_state_subscribe",
-                            "seq": 1
+                            "data": {
+                                "payload_index": "88-0-0", #DJI Matrice 4E Camera
+                                "reset_mode": user_input_num
+                            },
+                            "method": "drc_gimbal_reset",
+                            "seq": self.drc_seq
                         }
+                        self.drc_seq += 1
                         self.client.publish(f"thing/product/{gateway_sn}/drc/down", payload=json.dumps(test_message))
                         print(f"✅ 测试消息已发布到 thing/product/{gateway_sn}/drc/down")
+
+                    elif user_input == 'i':
+                        user_input = input("请输入目标点高度: ").strip()
+                        target_height = int(user_input)
+                        user_input = input("请输入指点飞行高度: ").strip()
+                        commander_flight_height = int(user_input)
+                        user_input = input("请输安全起飞高度: ").strip()
+                        security_takeoff_height = int(user_input)
+                        user_input = input("请输入目标点向东移动距离: ").strip()
+                        target_east = int(user_input)
+                        user_input = input("请输入目标点向北移动距离: ").strip()
+                        target_north = int(user_input)
+                        new_lat, new_lon = move_coordinates(lat, lon, target_north, target_east)
+                        print(f"原始坐标: ({lat}, {lon})")
+                        print(f"移动后坐标: ({new_lat:.6f}, {new_lon:.6f})")
+                        test_message = {
+                            "bid": generate_uuid(),
+                            "data": {
+                                "commander_flight_height": commander_flight_height,
+                                "commander_mode_lost_action": 1,
+                                "flight_id": generate_uuid(),
+                                "flight_safety_advance_check": 1,
+                                "max_speed": 12,
+                                "rc_lost_action": 0,
+                                "rth_altitude": 100,
+                                "security_takeoff_height": security_takeoff_height,
+                                "target_height": target_height,
+                                "target_latitude": new_lat,
+                                "target_longitude": new_lon
+                            },
+                            "tid": generate_uuid(),
+                            "timestamp": 1654070968655,
+                            "method": "takeoff_to_point"
+                        }
+                        self.client.publish(f"thing/product/{gateway_sn}/services", payload=json.dumps(test_message))
+                        print(f"✅ 测试消息已发布到 thing/product/{gateway_sn}/services")
+
+                    elif user_input == 'u':
+                        user_input = input("请输入目标点高度: ").strip()
+                        target_height = int(user_input)
+                        user_input = input("请输入目标点向东移动距离: ").strip()
+                        target_east = int(user_input)
+                        user_input = input("请输入目标点向北移动距离: ").strip()
+                        target_north = int(user_input)
+                        new_lat, new_lon = move_coordinates(lat, lon, target_north, target_east)
+                        print(f"原始坐标: ({lat}, {lon})")
+                        print(f"移动后坐标: ({new_lat:.6f}, {new_lon:.6f})")
+                        test_message = {
+                            "bid": generate_uuid(),
+                            "data": {
+                                "fly_to_id": generate_uuid(),
+                                "max_speed": 12,
+                                "points": [
+                                    {
+                                        "height": target_height,
+                                        "latitude": new_lat,
+                                        "longitude": new_lon
+                                    }
+                                ]
+                            },
+                            "tid": generate_uuid(),
+                            "timestamp": 1654070968655,
+                            "method": "fly_to_point"
+                        }
+                        self.client.publish(f"thing/product/{gateway_sn}/services", payload=json.dumps(test_message))
+                        print(f"✅ 测试消息已发布到 thing/product/{gateway_sn}/services")
+
+                    elif user_input == 'd':
+                        global DEBUG_FLAG
+                        DEBUG_FLAG = not DEBUG_FLAG
+                        print("打印调试信息:", DEBUG_FLAG)
                     
                     elif user_input == 'q':
                         print("退出程序...")
@@ -433,44 +560,35 @@ class DJIMQTTClient:
         t.start()
     
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-        if DEBUG_FLAG:
-            print("📨Got msg: " + msg.topic)
-            message = json.loads(msg.payload.decode("utf-8"))
-            
-            if msg.topic.endswith("status"):
-                if message["method"] != "update_topo":
-                    return
-                response = {
-                    "tid": message["tid"],
-                    "bid": message["bid"],
-                    "timestamp": message["timestamp"] + 2,
-                    "data": {"result": 0},
-                }
-                client.publish(msg.topic + "_reply", payload=json.dumps(response))
-                print("✅published")
-            
-            elif msg.topic.endswith("osd") and msg.topic.startswith("thing"):
-                self.handle_osd_message(message)
-    
-    def handle_osd_message(self, message: dict):
-        """处理OSD消息（原代码逻辑）"""
-        data = message["data"]
-        lat = data.pop("latitude", None)
-        lon = data.get("longitude", None)
-
-        attitude_head = data.pop("attitude_head", None)
-        attitude_pitch = data.pop("attitude_pitch", None)
-        attitude_roll = data.pop("attitude_roll", None)
-        height = data.pop("height", None)
-        data.pop("wireless_link", None)
-        data.pop("wireless_link_state", None)
-        data.pop("battery", None)
-        data.pop("live_status", None)
-
-        print(f"🌍Status: Lat: {lat} Lon: {lon} height: {height} att_head {attitude_head} att_pitch {attitude_pitch} att_roll {attitude_roll}")
-        pprint.pprint(data)
-
-        print(message)
+        global lon, lat, DEBUG_FLAG
+        message = json.loads(msg.payload.decode("utf-8"))
+        method = message.get("method", None)
+        data = message.get("data", None)
+        # if DEBUG_FLAG:
+        #     print("📨Got msg: " + msg.topic, method)
+        if msg.topic == f"thing/product/{gateway_sn}/drc/up":
+            if method == "osd_info_push":
+                lon = data.get("longitude", None)
+                lat = data.get("latitude", None)
+                if DEBUG_FLAG:
+                    print(f"🌍 OSD Info - Lat: {lat}, Lon: {lon}") 
+        elif msg.topic == f"thing/product/{gateway_sn}/services_reply":
+            if method == "takeoff_to_point":
+                result = message.get("data", {}).get("result", -1)
+                if result == 0:
+                    print("✅ 一键起飞指令发送成功")
+                else:
+                    print(f"❌ 一键起飞指令发送失败，错误码: {result}")
+        elif msg.topic == f"thing/product/{gateway_sn}/events":
+            if method == "takeoff_to_point_progress":
+                status = message.get("status", None)
+                if status == "wayline_ok":
+                    print("一键起飞执行成功,已飞向目标点")
+            if method == "fly_to_point_progress":
+                status = message.get("status", None)
+                if status == "wayline_ok":
+                    print("指点飞行执行成功,已飞向目标点")
+     
     
     def run(self):
         """运行客户端"""
