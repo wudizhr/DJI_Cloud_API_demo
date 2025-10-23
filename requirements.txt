@@ -1,2 +1,4 @@
-FastAPI
-paho-mqtt >= 2
+fastapi==0.119.1
+geopy==2.4.1
+paho_mqtt==2.1.0
+uvicorn==0.38.0
