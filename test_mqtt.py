@@ -9,7 +9,7 @@ import paho
 import paho.mqtt.client as mqtt
 from key_hold_control import key_control
 from DRC_controler import DRC_controler
-from fly_utils import generate_uuid, move_coordinates
+from fly_utils import move_coordinates
 from services_publisher import Ser_puberlisher
 
 DEBUG_FLAG = False
@@ -64,6 +64,7 @@ class DJIMQTTClient:
         # print(f"✅ 消息 #{mid} 发布成功 (原因码: {reason_code})")
 
     def ptint_menu(self):
+            print("\n" * 5)
             print("\n" + "="*50)
             print("🎮 键盘控制菜单:")
             print("  a - 请求授权云端控制消息")
@@ -76,6 +77,7 @@ class DJIMQTTClient:
             print("  s - 控制飞机后退3秒")
             print("  e - 重置云台")
             print("  u - 飞向目标点")
+            print("  i - 多目标点飞行")
             print("  d - 开启/关闭信息打印")
             print("  o - 开始/结束信息保存")
             print("  m - 开启/关闭DRC心跳")
@@ -122,8 +124,8 @@ class DJIMQTTClient:
                         self.drc_controler.send_camera_reset_command(user_input_num)
 
                     elif user_input == 'u': #飞向目标点
-                        user_input = input("请输入目标点高度: ").strip()
-                        target_height = int(user_input)
+                        user_input = input("请输入目标点高度(相对于当前高度): ").strip()
+                        target_height = height + int(user_input)
                         user_input = input("请输入目标点向东移动距离: ").strip()
                         target_east = int(user_input)
                         user_input = input("请输入目标点向北移动距离: ").strip()
@@ -132,6 +134,23 @@ class DJIMQTTClient:
                         print(f"原始坐标: ({lat}, {lon})")
                         print(f"移动后坐标: ({new_lat:.6f}, {new_lon:.6f})")
                         self.ser_puberlisher.publish_flyto_command(new_lat, new_lon, target_height)
+                        self.ser_puberlisher.publish_flyto_reset()
+
+                    elif user_input == 'i': #飞向目标点列表
+                        pos_list = []
+                        user_input = input("航点总数").strip()
+                        pos_num = int(user_input)
+                        for i in range(pos_num):
+                            print(f"第 {i+1} 个航点:")
+                            user_input = input("请输入目标点高度(相对于当前高度): ").strip()
+                            target_height = height + int(user_input)
+                            user_input = input("请输入目标点向东移动距离: ").strip()
+                            target_east = int(user_input)
+                            user_input = input("请输入目标点向北移动距离: ").strip()
+                            target_north = int(user_input)
+                            new_lat, new_lon = move_coordinates(lat, lon, target_north, target_east)
+                            pos_list.append((new_lat, new_lon, target_height))
+                        self.ser_puberlisher.publish_flyto_list_command(pos_list)
 
                     elif user_input == 'd': #显示/关闭信息打印
                         global DEBUG_FLAG
@@ -199,19 +218,32 @@ class DJIMQTTClient:
                         print(f"❌ 保存 OSD 数据失败: {e}", file=sys.stderr)
                            
         elif msg.topic == f"thing/product/{gateway_sn}/services_reply":
-            # pprint.pprint(msg)
-            if method == "takeoff_to_point":
+            # pprint.pprint(message)
+            if method == "fly_to_point":
                 result = message.get("data", {}).get("result", -1)
                 if result == 0:
-                    print("✅ 一键起飞指令发送成功")
+                    self.ser_puberlisher.flyto_reply_flag = 1
+                    print("✅ 指点飞指令发送成功")
                 else:
-                    print(f"❌ 一键起飞指令发送失败，错误码: {result}")
+                    self.ser_puberlisher.flyto_reply_flag = 2
+                    print(f"❌ 指点飞行指令发送失败，错误码: {result}")
         elif msg.topic == f"thing/product/{gateway_sn}/events":
             if method == "fly_to_point_progress":
                 data = message.get("data", None)
                 status = data.get("status", None)
-                if status == "wayline_ok":
-                    print("指点飞行执行成功,已到达目标点")
+                fly_to_id = data.get("fly_to_id", None)
+                # print(flight_id)
+                # print(self.ser_puberlisher.flyto_id)
+                # print()
+                if fly_to_id == self.ser_puberlisher.flyto_id:
+                    if status == "wayline_cancel":
+                        self.ser_puberlisher.flyto_state_code = 101
+                    if status == "wayline_failed":
+                        self.ser_puberlisher.flyto_state_code = 102
+                    if status == "wayline_ok":
+                        self.ser_puberlisher.flyto_state_code = 103
+                    if status == "wayline_progress":
+                        self.ser_puberlisher.flyto_state_code = 104
      
     def run(self):
         """运行客户端"""
