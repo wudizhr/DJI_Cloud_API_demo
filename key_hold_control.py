@@ -22,7 +22,7 @@ stick_vlue = 200.0  # 杆量
 
 def ptint_menu():
         print("\n" + "="*50)
-        print("🎮 键盘控制菜单:")
+        print("🎮 键盘控制无人机菜单:")
         print("  w - 前进")
         print("  a - 左移")
         print("  s - 后退")
@@ -41,33 +41,33 @@ def sender(stop_event, last_w_time_holder, drc_controler, stick_vlue):
     while not stop_event.is_set():
         now = time.time()
         if last_w_time_holder[0] is not None and (now - last_w_time_holder[0]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024 + stick_vlue, 1024, 1024)
+            drc_controler.send_stick_control_command(1024, 1024 + stick_vlue, 1024, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[1] is not None and (now - last_w_time_holder[1]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024 - stick_vlue, 1024, 1024, 1024)
+            drc_controler.send_stick_control_command(1024 - stick_vlue, 1024, 1024, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[2] is not None and (now - last_w_time_holder[2]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024 - stick_vlue, 1024, 1024)
+            drc_controler.send_stick_control_command(1024, 1024 - stick_vlue, 1024, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[3] is not None and (now - last_w_time_holder[3]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024 + stick_vlue, 1024, 1024, 1024)
+            drc_controler.send_stick_control_command(1024 + stick_vlue, 1024, 1024, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[4] is not None and (now - last_w_time_holder[4]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024, 1024, 1024 - stick_vlue)
+            drc_controler.send_stick_control_command(1024, 1024, 1024, 1024 - stick_vlue)
             sys.stdout.flush()
         elif last_w_time_holder[5] is not None and (now - last_w_time_holder[5]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024, 1024, 1024 + stick_vlue)
+            drc_controler.send_stick_control_command(1024, 1024, 1024, 1024 + stick_vlue)
             sys.stdout.flush()
         elif last_w_time_holder[6] is not None and (now - last_w_time_holder[6]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024, 1024 + stick_vlue, 1024)
+            drc_controler.send_stick_control_command(1024, 1024, 1024 + stick_vlue, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[7] is not None and (now - last_w_time_holder[7]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024, 1024 - stick_vlue, 1024)
+            drc_controler.send_stick_control_command(1024, 1024, 1024 - stick_vlue, 1024)
             sys.stdout.flush()
         elif last_w_time_holder[8] is not None and (now - last_w_time_holder[8]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1680, 365, 365, 365)
+            drc_controler.send_stick_control_command(1680, 365, 365, 365)
         elif last_w_time_holder[9] is not None and (now - last_w_time_holder[9]) <= HOLD_THRESHOLD:
-            drc_controler.send_control_command(1024, 1024, 365, 1024)            
+            drc_controler.send_stick_control_command(1024, 1024, 365, 1024)            
             sys.stdout.flush()
         time.sleep(SEND_INTERVAL)
 
