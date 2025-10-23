@@ -24,4 +24,5 @@ async def pilot_login():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=host_addr, port=5000)
+    print(host_addr)
+    uvicorn.run(app, host=host_addr, port=5500)

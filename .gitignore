@@ -10,3 +10,7 @@ pip-delete-this-directory.txt
 .tox
 .coverage
 .coverage.*.vscode_backup/
+osd_data.json
+config_ip.sh
+curses_test.py
+test.py

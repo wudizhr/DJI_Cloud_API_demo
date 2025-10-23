@@ -1,3 +1,3 @@
-export HOST_ADDR=192.168.31.88
-export USERNAME=WUDIZHR
-export PASSWORD=123456
+export HOST_ADDR=grve.me
+export USERNAME=dji
+export PASSWORD=lab605605
