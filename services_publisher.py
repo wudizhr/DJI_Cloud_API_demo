@@ -55,6 +55,15 @@ flayto_message = {
     "method": "fly_to_point"    
 }
 
+return_home_message = {
+	"bid": "f9f07aad-d1f1-4dc1-8ad0-a3417fd365cc",
+	"data": "null",
+	"method": "return_home",
+	"tid": "b103b00a-3fcc-476e-9cb6-bc5e27d2defd",
+	"timestamp": 1734425015702
+}
+
+
 flyto_dict = {100:"暂未收到返回数据", 101:"取消飞向目标点", 102:"执行失败", 103:"执行成功，已飞向目标点", 104:"执行中"}
 
 class Ser_puberlisher:
@@ -84,8 +93,16 @@ class Ser_puberlisher:
         if self.is_print:
             print(f"✅ 进入指令飞行控制模式指令已发布到 thing/product/{self.gateway_sn}/services")
 
+    def publish_return_home(self):
+        return_home_message["bid"] = generate_uuid()
+        return_home_message["tid"] = generate_uuid()
+        return_home_message["timestamp"] = int(time.time()  * 1000)
+        self.client.publish(self.topic, payload=json.dumps(return_home_message))
+        if self.is_print:
+            print(f"✅ 一键返航指令已发布到 thing/product/{self.gateway_sn}/services")
+
     def publish_flyto_command(self, lat, lon, height):
-        height = self.flight_state.height + height
+        height = self.flight_state.takeoff_height + height
         flayto_message["data"]["points"][0]["latitude"] = lat
         flayto_message["data"]["points"][0]["longitude"] = lon
         flayto_message["data"]["points"][0]["height"] = height

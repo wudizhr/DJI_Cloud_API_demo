@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
 import re
 
+"""读取kml文件并转换为txt"""
+
 def parse_kml_to_uav_files(kml_file_path):
     # 解析KML文件
     tree = ET.parse(kml_file_path)
@@ -57,7 +59,24 @@ def parse_kml_to_uav_files(kml_file_path):
         
         print(f"已生成文件: {filename}，包含 {len(uav_data[uav_key])} 个航点")
 
+
+
 # 使用示例
 if __name__ == "__main__":
-    kml_file = "fly_to_points.kml"  # 替换为你的KML文件路径
-    parse_kml_to_uav_files(kml_file)
+    # kml_file = "fly_to_points.kml"  # 替换为你的KML文件路径
+    # parse_kml_to_uav_files(kml_file)
+    # 简洁版本
+    coordinates = []
+    with open("uav1.txt", 'r', encoding='utf-8') as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('['):
+                parts = line.split()
+                if len(parts) >= 3:
+                    # 文件中格式：序号 纬度 经度
+                    # 转换为：[经度, 纬度]
+                    latitude = float(parts[2])
+                    longitude = float(parts[1])
+                    coordinates.append([longitude, latitude, 80])
+
+    print("坐标列表：", coordinates)

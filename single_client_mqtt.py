@@ -232,6 +232,12 @@ class DJIMQTTClient:
                 else:
                     self.ser_puberlisher.flyto_reply_flag = 2
                     print(f"❌ 指点飞行指令发送失败，错误码: {result}")
+            elif method == "return_home":
+                result = message.get("data", {}).get("result", -1)
+                if result == 0:
+                    print("✅ 一键返航指令发送成功")
+                else:
+                    print(f"❌ 一键返航指令发送失败，错误码: {result}")                
         elif msg.topic == f"thing/product/{self.gateway_sn}/events":
             if method == "fly_to_point_progress":
                 data = message.get("data", None)

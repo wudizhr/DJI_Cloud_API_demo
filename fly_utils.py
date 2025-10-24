@@ -48,3 +48,19 @@ class FlightState:
         self.lat = lat
         self.height = height
         self.mode_code = -1
+        self.takeoff_height = 0
+
+def get_points_from_txt(filename, height):
+    coordinates = []
+    with open(filename, 'r', encoding='utf-8') as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('['):
+                parts = line.split()
+                if len(parts) >= 3:
+                    # 文件中格式：序号 纬度 经度
+                    # 转换为：[经度, 纬度]
+                    latitude = float(parts[2])
+                    longitude = float(parts[1])
+                    coordinates.append([longitude, latitude, height])
+    return coordinates
