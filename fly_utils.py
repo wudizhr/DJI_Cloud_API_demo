@@ -41,3 +41,9 @@ def move_coordinates(lat, lon, distance_east, distance_north):
         final_point = point_north
     
     return final_point.latitude, final_point.longitude
+
+class FlightState:
+    def __init__(self, lon=0, lat=0, height=0):
+        self.lon = lon
+        self.lat = lat
+        self.height = height

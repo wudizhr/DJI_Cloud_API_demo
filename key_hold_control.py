@@ -130,7 +130,7 @@ def key_control(drc_controler):
     finally:
         stop_event.set()
         t.join(timeout=1.0)
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        print("已退出")
+        # termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        # print("已退出")
 
 

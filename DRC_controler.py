@@ -23,7 +23,7 @@ standard_camera_message = {
 }
 
 class DRC_controler:
-    def __init__(self, gateway_sn, client):
+    def __init__(self, gateway_sn, client, flight_state):
         self.gateway_sn = gateway_sn
         self.topic = f"thing/product/{self.gateway_sn}/drc/down" 
         self.seq = 0
@@ -33,6 +33,7 @@ class DRC_controler:
         self.is_beat = True
         self.heart_freq = 1.0  # 心跳频率，单位Hz
         self.client = client
+        self.flight_state = flight_state
         self.start_heartbeat()
 
     def send_stick_control_command(self, roll, pitch, throttle, yaw):
@@ -63,14 +64,40 @@ class DRC_controler:
         thread.daemon = True
         thread.start()
 
+    def send_stick_to_height(self, height, stick_vlaue):
+        """控制飞机解锁并起飞至指定高度(相对高度)"""
+        # def send_commands():
+        print(f"设定相对高度{height}米,起飞指令执行中...")
+        interval = 1.0 / 20
+        total_messages = int(1 * 20)
+        for _ in range(total_messages):
+            self.send_stick_control_command(1680, 365, 365, 365)
+            time.sleep(interval)
+        last = time.time()
+        initial_height = self.flight_state.height 
+        while self.flight_state.height - initial_height < height:
+            print(self.flight_state.height)
+            now = time.time()
+            self.send_stick_control_command(1024, 1024, 1024 + stick_vlaue, 1024)
+            if self.flight_state.height - initial_height < height/10 and now - last > 10:
+                print(f"无人机响应超时,请检查连接状态")
+                break
+            time.sleep(interval)
+        else:
+            print(f"无人机{self.gateway_sn} 已飞行至指定高度,相对高度{self.flight_state.height - initial_height}米")
 
-    def send_camera_reset_command(self, client, user_input_num):
+        # thread = threading.Thread(target=send_commands)
+        # thread.daemon = True
+        # thread.start()
+        
+
+    def send_camera_reset_command(self, user_input_num):
         """发送云台复位命令到DRC"""
         message = standard_camera_message.copy()
         message["seq"] = self.seq
         message["data"]["reset_mode"] = user_input_num
         payload = json.dumps(message)
-        client.publish(self.topic, payload)
+        self.client.publish(self.topic, payload)
         self.seq += 1
 
     def publish_heartbeat(self):

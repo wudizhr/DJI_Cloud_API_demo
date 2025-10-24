@@ -1,3 +1,3 @@
-export HOST_ADDR=192.168.45.237
+export HOST_ADDR=192.168.8.155
 export USERNAME=dji
 export PASSWORD=lab605605
