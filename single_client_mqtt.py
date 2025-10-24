@@ -18,20 +18,17 @@ gateway_sn = ["9N9CN2J0012CXY","9N9CN8400164WH","9N9CN180011TJN"]
 
 class DJIMQTTClient:
     def __init__(self, gateway_sn_code):
-        self.setup_client()
         self.gateway_sn_code = gateway_sn_code
         self.gateway_sn = gateway_sn[gateway_sn_code]
-        self.DEBUG_FLAG = True
-
+        self.DEBUG_FLAG = False
         self.flight_state = FlightState()
-
         self.last_time = 0
         self.now_time = 0
-
         self.SAVE_FLAG = False
         self.save_name = f"out/osd_data_{self.gateway_sn_code}.json" # 保存文件名
         # 用于文件写入的锁，确保并发回调时写文件安全
         self.save_lock = threading.Lock()
+        self.setup_client()
         self.drc_controler = DRC_controler(self.gateway_sn, self.client, self.flight_state)
         self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, self.flight_state)
     
@@ -41,7 +38,7 @@ class DJIMQTTClient:
         self.client.on_publish = self.on_publish
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.client.username_pw_set(username, password)
+        self.client.username_pw_set(f"{username}_{self.gateway_sn_code}", password)
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
         print(f"UAV {self.gateway_sn_code + 1} connected with result code " + str(rc))
@@ -206,8 +203,6 @@ class DJIMQTTClient:
                 self.flight_state.height = data.get("height", None)
                 line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height})"
                 if self.DEBUG_FLAG:
-                    # if self.now_time - self.last_time > 1:
-                    #     self.last_time = time.time()
                     print(line)
                 if self.SAVE_FLAG:
                     message_with_timestamp = {
@@ -222,6 +217,10 @@ class DJIMQTTClient:
                     except Exception as e:
                         # 不要抛出异常以免影响主线程，记录错误到 stderr
                         print(f"❌ 保存 OSD 数据失败: {e}", file=sys.stderr)
+
+            elif method == "drc_drone_state_push":
+                data = message.get("data", None)
+                self.flight_state.mode_code = data.get("mode_code", None)
                            
         elif msg.topic == f"thing/product/{self.gateway_sn}/services_reply":
             # pprint.pprint(message)

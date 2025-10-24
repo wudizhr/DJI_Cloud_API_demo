@@ -66,30 +66,45 @@ class DRC_controler:
 
     def send_stick_to_height(self, height, stick_vlaue):
         """控制飞机解锁并起飞至指定高度(相对高度)"""
-        # def send_commands():
-        print(f"设定相对高度{height}米,起飞指令执行中...")
-        interval = 1.0 / 20
-        total_messages = int(1 * 20)
-        for _ in range(total_messages):
-            self.send_stick_control_command(1680, 365, 365, 365)
-            time.sleep(interval)
-        last = time.time()
-        initial_height = self.flight_state.height 
-        while self.flight_state.height - initial_height < height:
-            print(self.flight_state.height)
-            now = time.time()
-            self.send_stick_control_command(1024, 1024, 1024 + stick_vlaue, 1024)
-            if self.flight_state.height - initial_height < height/10 and now - last > 10:
-                print(f"无人机响应超时,请检查连接状态")
-                break
-            time.sleep(interval)
-        else:
-            print(f"无人机{self.gateway_sn} 已飞行至指定高度,相对高度{self.flight_state.height - initial_height}米")
+        def send_commands():
+            print(f"设定相对高度{height}米,起飞指令执行中...")
+            interval = 1.0 / 20
+            total_messages = int(1 * 20)
+            for _ in range(total_messages):
+                self.send_stick_control_command(1680, 365, 365, 365)
+                time.sleep(interval)
+            last = time.time()
+            initial_height = self.flight_state.height 
+            while self.flight_state.height - initial_height < height:
+                now = time.time()
+                self.send_stick_control_command(1024, 1024, 1024 + stick_vlaue, 1024)
+                time.sleep(interval)
+            else:
+                print(f"无人机{self.gateway_sn} 已飞行至指定高度,相对高度{self.flight_state.height - initial_height}米")
 
-        # thread = threading.Thread(target=send_commands)
-        # thread.daemon = True
-        # thread.start()
+        thread = threading.Thread(target=send_commands)
+        thread.daemon = True
+        thread.start()
         
+    def send_land_command(self):
+        def send_commands():
+            limit_time = 30
+            last_time = time.time()
+            while True:
+                self.send_stick_control_command(1024, 1024, 365, 1024)
+                now_time = time.time()
+                if now_time - last_time > limit_time:
+                    (f"无人机{self.gateway_sn}降落超时,请检查连接状态")
+                    break
+                if self.flight_state.mode_code == 0:
+                    (f"无人机{self.gateway_sn}降落成功,正在待机")
+                    break
+                time.sleep(0.1)
+
+        thread = threading.Thread(target=send_commands)
+        thread.daemon = True
+        thread.start()
+
 
     def send_camera_reset_command(self, user_input_num):
         """发送云台复位命令到DRC"""
@@ -109,8 +124,6 @@ class DRC_controler:
             }
             self.client.publish(self.topic, payload=json.dumps(heartbeat_msg), qos=1)
             self.seq += 1
-            # if self.is_print:
-            #     print(f"❤️ 心跳已发送: seq={self.seq}")
 
     def start_heartbeat(self):
         def heartbeat_loop():

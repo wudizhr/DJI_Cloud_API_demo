@@ -47,3 +47,4 @@ class FlightState:
         self.lon = lon
         self.lat = lat
         self.height = height
+        self.mode_code = -1

@@ -44,10 +44,11 @@ class MAIN_CONTROL_Client:
                         keylistener.start()
                         while keylistener.is_alive():
                             pass
+                        
                     elif user_input == 'b': 
                         self.rquest_cloud_control()
+
                     elif user_input == '1': 
-                        print("1")
                         user_input = input("请输入指定高度(相对当前): ").strip()
                         user_height = float(user_input)
                         user_input = input("请输入油门杆量: ").strip()
@@ -57,7 +58,10 @@ class MAIN_CONTROL_Client:
                         self.mission_1(user_height, user_throttle, id)
 
                     elif user_input == '2':
-                        print("2")
+                        user_input = input("请输入无人机编号: ").strip()
+                        id = int(user_input)
+                        self.mission_2(id)
+
                     elif user_input == '3':
                         print("3")
                     elif user_input == '4':
@@ -107,10 +111,13 @@ class MAIN_CONTROL_Client:
         else:
             self.clients[id-1].drc_controler.send_stick_to_height(height, stick_value)
 
+    def mission_2(self, id):  #   原地降落任务
+        if id == 99:
+            for client in self.clients:
+                client.drc_controler.send_land_command()
+        else:
+            self.clients[id-1].drc_controler.send_land_command()
+
 if __name__ == "__main__":
     main_client = MAIN_CONTROL_Client(3)
-    print(main_client.clients[0].gateway_sn)
-    print(main_client.clients[1].gateway_sn)
-    print(main_client.clients[2].gateway_sn)
     main_client.run()
-    

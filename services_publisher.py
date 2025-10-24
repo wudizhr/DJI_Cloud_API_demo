@@ -78,6 +78,7 @@ class Ser_puberlisher:
 
     def publish_enter_live_flight_controls_mode(self):
         enter_live_flight_controls_mode_message["data"]["mqtt_broker"]["address"] = f"{self.host_addr}:1883"
+        enter_live_flight_controls_mode_message["data"]["mqtt_broker"]["client_id"] = f"sn_{self.gateway_sn}"
         enter_live_flight_controls_mode_message["timestamp"] = int(time.time() * 1000)
         self.client.publish(self.topic, payload=json.dumps(enter_live_flight_controls_mode_message))
         if self.is_print:
