@@ -1,6 +1,7 @@
 import uuid
 from geopy.distance import geodesic
 from geopy.point import Point
+import time
 
 def generate_uuid():
     """生成标准UUID格式的随机ID"""
@@ -41,6 +42,22 @@ def move_coordinates(lat, lon, distance_east, distance_north):
         final_point = point_north
     
     return final_point.latitude, final_point.longitude
+
+class Time_counter:
+    def __init__(self, last_time=0, now_time=0):
+        self.last_time = last_time
+        self.now_time = now_time
+        self.update_last()
+        self.update_now()
+
+    def update_last(self):
+        self.last_time = self.now_time
+
+    def update_now(self):
+        self.now_time = time.time()
+
+    def get_time_minus(self):
+        return self.now_time - self.last_time
 
 class FlightState:
     def __init__(self, lon=0, lat=0, height=0):

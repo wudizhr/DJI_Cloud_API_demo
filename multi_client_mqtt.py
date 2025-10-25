@@ -1,16 +1,15 @@
-from single_client_mqtt import DJIMQTTClient
+from CluodAPI_Terminal_Client.single_client_mqtt import DJIMQTTClient
 import threading
 import time
 import sys
-from fly_utils import get_points_from_txt
+from CluodAPI_Terminal_Client.fly_utils import get_points_from_txt
 
 points_list = [None, None, None]
 
 points_list[0] = get_points_from_txt("uav1.txt", 80)
-points_list[1] = get_points_from_txt("uav2.txt", 80)
-points_list[2] = get_points_from_txt("uav3.txt", 80)
+points_list[1] = get_points_from_txt("uav2.txt", 90)
+points_list[2] = get_points_from_txt("uav3.txt", 100)
 
-# print(len(points_list[0]))
 class MAIN_CONTROL_Client:
     def __init__(self, client_num):
         self.client_num = client_num
@@ -57,12 +56,12 @@ class MAIN_CONTROL_Client:
                         self.rquest_cloud_control()
 
                     elif user_input == '1': 
+                        user_input = input("请输入无人机编号: ").strip()
+                        id = int(user_input)
                         user_input = input("请输入指定高度(相对当前): ").strip()
                         user_height = float(user_input)
                         user_input = input("请输入油门杆量: ").strip()
                         user_throttle = float(user_input)
-                        user_input = input("请输入无人机编号: ").strip()
-                        id = int(user_input)
                         self.mission_1(user_height, user_throttle, id)
 
                     elif user_input == '2':
@@ -156,20 +155,16 @@ class MAIN_CONTROL_Client:
         else:
             self.clients[id-1].ser_puberlisher.publish_return_home()
 
-    def mission_4(self, id, lat, lon, height):
-        if id == 99:
-            for client in self.clients:
-                client.ser_puberlisher.publish_flyto_command(lat, lon, height)
-        else:
-            self.clients[id-1].ser_puberlisher.publish_flyto_command(lat, lon, height)       
+    def mission_4(self, id, lat, lon, height):  #   飞往指定目标点
+            self.clients[id-1].ser_puberlisher.publish_flyto_list_command([[lat, lon, height]])       
 
-    def mission_5(self, id):
+    def mission_5(self, id):  #   按照航线1飞行
             self.clients[id-1].ser_puberlisher.publish_flyto_list_command(points_list[0])    
 
-    def mission_6(self, id):
+    def mission_6(self, id):  #   按照航线2飞行
             self.clients[id-1].ser_puberlisher.publish_flyto_list_command(points_list[1])    
 
-    def mission_7(self, id):
+    def mission_7(self, id):  #   按照航线3飞行
             self.clients[id-1].ser_puberlisher.publish_flyto_list_command(points_list[2])         
 
 if __name__ == "__main__":

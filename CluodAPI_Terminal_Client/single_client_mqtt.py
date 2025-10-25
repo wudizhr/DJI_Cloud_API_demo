@@ -5,10 +5,10 @@ import threading
 import sys
 import paho
 import paho.mqtt.client as mqtt
-from key_hold_control import key_control
-from DRC_controler import DRC_controler
-from fly_utils import FlightState
-from services_publisher import Ser_puberlisher
+from CluodAPI_Terminal_Client.key_hold_control import key_control
+from CluodAPI_Terminal_Client.DRC_controler import DRC_controler
+from CluodAPI_Terminal_Client.fly_utils import FlightState, Time_counter
+from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
 
 host_addr = os.environ["HOST_ADDR"]
 username = os.environ["USERNAME"]
@@ -29,8 +29,9 @@ class DJIMQTTClient:
         # 用于文件写入的锁，确保并发回调时写文件安全
         self.save_lock = threading.Lock()
         self.setup_client()
+        self.flyto_time_counter = Time_counter()
         self.drc_controler = DRC_controler(self.gateway_sn, self.client, self.flight_state)
-        self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, self.flight_state)
+        self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, self.flight_state, self.flyto_time_counter)
     
     def setup_client(self):
         """设置MQTT客户端"""
@@ -52,20 +53,17 @@ class DJIMQTTClient:
         """v2.x 版本的发布成功回调 - 5个参数"""
 
     def ptint_menu(self):
-            print("\n" + "="*50)
+            print("\n" + "=" * 50)
             print(f"{self.gateway_sn_code + 1}号无人机 {self.gateway_sn} 🎮 键盘控制菜单:")
-            print("="*50)
+            print("=" * 50)
             print("  a - 请求授权云端控制消息")
             print("  j - 进入指令飞行控制模式")
             print("  c - 进入键盘控制模式")
             print("  f - 杆位解锁无人机")
             print("  g - 杆位锁定无人机")
             print("  h - 解锁飞机并飞行到指定高度")
-            print("  w - 控制飞机前进3秒")
-            print("  s - 控制飞机后退3秒")
             print("  e - 重置云台")
-            print("  u - 飞向目标点")
-            print("  i - 多目标点飞行")
+            print("=" * 50)
             print("  d - 开启/关闭信息打印")
             print("  o - 开始/结束信息保存")
             print("  m - 开启/关闭DRC心跳")
@@ -104,57 +102,11 @@ class DJIMQTTClient:
                         user_throttle = float(user_input)
                         self.drc_controler.send_stick_to_height(user_height, user_throttle)
 
-                    elif user_input == 'w': #控制飞机前进
-                        self.drc_controler.send_timing_control_command(1024, 1024+100, 1024, 1024, 3, 10)
-
-                    elif user_input == 's': #控制飞机后退
-                        self.drc_controler.send_timing_control_command(1024, 1024-100, 1024, 1024, 3, 10)
-
                     elif user_input == 'e': #重置云台
                         print(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
                         user_input = input("请输入重置模式类型: ").strip()
                         user_input_num = int(user_input)
                         self.drc_controler.send_camera_reset_command(user_input_num)
-
-                    elif user_input == 'u': #飞向目标点
-                        user_input = input("请输入目标点高度(相对于当前高度): ").strip()
-                        target_height = int(user_input)
-                        user_input = input("请输入目标点向东移动距离: ").strip()
-                        target_east = int(user_input)
-                        user_input = input("请输入目标点向北移动距离: ").strip()
-                        target_north = int(user_input)
-                        self.ser_puberlisher.publish_flyto_command(target_height, target_east, target_north)
-                        self.ser_puberlisher.update_flyto_id()
-
-                    elif user_input == 'i': #飞向目标点列表(相对坐标)
-                        pos_list = []
-                        user_input = input("航点总数").strip()
-                        pos_num = int(user_input)
-                        for i in range(pos_num):
-                            print(f"第 {i+1} 个航点:")
-                            user_input = input("请输入目标点高度(相对于当前高度): ").strip()
-                            target_height = int(user_input)
-                            user_input = input("请输入目标点向东移动距离: ").strip()
-                            target_east = int(user_input)
-                            user_input = input("请输入目标点向北移动距离: ").strip()
-                            target_north = int(user_input)
-                            pos_list.append((target_height, target_east, target_north))
-                        self.ser_puberlisher.publish_flyto_body_list_command(pos_list)
-        
-                    elif user_input == 'o': #飞向目标点列表
-                        pos_list = []
-                        user_input = input("航点总数").strip()
-                        pos_num = int(user_input)
-                        for i in range(pos_num):
-                            print(f"第 {i+1} 个航点:")
-                            user_input = input("请输入目标点高度(相对于当前高度): ").strip()
-                            target_height = int(user_input)
-                            user_input = input("请输入目标点经度: ").strip()
-                            target_lon = int(user_input)
-                            user_input = input("请输入目标点纬度: ").strip()
-                            target_lat = int(user_input)
-                            pos_list.append((target_lat, target_lon, target_height))
-                        self.ser_puberlisher.publish_flyto_body_list_command(pos_list)
 
                     elif user_input == 'd': #显示/关闭信息打印
                         self.DEBUG_FLAG = not self.DEBUG_FLAG
@@ -211,8 +163,8 @@ class DJIMQTTClient:
                     }
                     # 将包含时间戳的消息以 JSON 行追加到文件
                     try:
-                        with save_lock:
-                            with open(save_name, 'a', encoding='utf-8') as sf:
+                        with self.save_lock:
+                            with open(self.save_name, 'a', encoding='utf-8') as sf:
                                 sf.write(json.dumps(message_with_timestamp, ensure_ascii=False) + "\n")
                     except Exception as e:
                         # 不要抛出异常以免影响主线程，记录错误到 stderr
@@ -240,6 +192,9 @@ class DJIMQTTClient:
                     print(f"❌ 一键返航指令发送失败，错误码: {result}")                
         elif msg.topic == f"thing/product/{self.gateway_sn}/events":
             if method == "fly_to_point_progress":
+                self.flyto_time_counter.update_last()
+                self.flyto_time_counter.update_now()
+                # print(self.flyto_time_counter.get_time_minus())
                 data = message.get("data", None)
                 status = data.get("status", None)
                 fly_to_id = data.get("fly_to_id", None)

@@ -128,9 +128,10 @@ def key_control(drc_controler):
             # 否则继续循环，sender 线程会根据 last_w_time_holder 决定是否发送
 
     finally:
+        pass
         stop_event.set()
         t.join(timeout=1.0)
-        # termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         # print("已退出")
 
 
