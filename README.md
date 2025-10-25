@@ -15,7 +15,7 @@ reference project https://github.com/pktiuk/DJI_Cloud_API_minimal.git Thank you 
 3. Connect your DJI Smart Controller to the same local network your PC is in (in case of laptop I recommend creating local hotspot).
 4. Set env variable `HOST_ADDR`, `USERNAME`, `PASSWORD` in `config.sh` and run `source config.sh` to application them
 5. Set host in `couldhtml/login.html` and run `./cloud_api_http.py` to start http server
-6. run `./multi_client_mqtt.py` to activate the multi machine control terminal
+6. Run `./multi_client_mqtt.py` to activate the multi machine control terminal
 
 ### Conecting the controller
 
