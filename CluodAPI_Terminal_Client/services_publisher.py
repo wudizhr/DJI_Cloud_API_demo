@@ -7,11 +7,10 @@ import threading
 OSD_FREQ = 50
 
 # RTMP 直播配置
-RTMP_URL = 'rtmp://192.168.31.69:1935/live/drone001'
+RTMP_URL = 'rtmp://81.70.222.38:1935/live/Drone001'
 VIDEO_INDEX = 'normal-0'  # 视频流索引
 VIDEO_QUALITY = 1  # 0=自适应, 1=流畅, 2=标清, 3=高清, 4=超清
 video_id = "1581F7FVC257X00D6KZ2/88-0-0/normal-0"
-
 
 
 request_cloud_control_authorization_message = {
