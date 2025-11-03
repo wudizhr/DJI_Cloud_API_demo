@@ -23,6 +23,9 @@ class MAIN_CONTROL_Client:
             print("🎮 键盘控制菜单:")
             print("  a - 进入指定无人机控制菜单")
             print("  b - 连接三个遥控器")
+            print("  c - 三个遥控器进入指令飞行模式")
+            print("  d - 发送开启直播请求")
+            print("  e - 发送关闭直播请求")
             print("  q - 退出程序")
             print("="*50)
             print("Mission Control")
@@ -54,6 +57,19 @@ class MAIN_CONTROL_Client:
 
                     elif user_input == 'b': 
                         self.rquest_cloud_control()
+
+                    elif user_input == 'c': 
+                        self.rquest_DRC_control()
+
+                    elif user_input == 'd': 
+                        user_input = input("请输入无人机编号: ").strip()
+                        id = int(user_input)
+                        self.DRC_start_live(id)
+
+                    elif user_input == 'e': 
+                        user_input = input("请输入无人机编号: ").strip()
+                        id = int(user_input)
+                        self.DRC_stop_live(id)
 
                     elif user_input == '1': 
                         user_input = input("请输入无人机编号: ").strip()
@@ -132,7 +148,27 @@ class MAIN_CONTROL_Client:
 
     def rquest_cloud_control(self):
         for client in self.clients:
-            client.ser_puberlisher.connect_to_remoter()
+            client.ser_puberlisher.publish_request_cloud_control_authorization()
+        print("已向三个遥控器发送云端控制请求指令!")
+
+    def rquest_DRC_control(self):
+        for client in self.clients:
+            client.ser_puberlisher.publish_enter_live_flight_controls_mode()
+        print("已向三个遥控器发送DRC控制请求指令!")
+
+    def DRC_start_live(self, id):
+        if id == 99:
+            for client in self.clients:
+                client.ser_puberlisher.publish_start_live()
+        else:
+            self.clients[id-1].ser_puberlisher.publish_start_live()    
+
+    def DRC_stop_live(self, id):
+        if id == 99:
+            for client in self.clients:
+                client.ser_puberlisher.publish_stop_live()
+        else:
+            self.clients[id-1].ser_puberlisher.publish_stop_live()    
 
     def mission_1(self, height, stick_value, id):  #   原地起飞5米任务
         if id == 99:

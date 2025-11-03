@@ -4,6 +4,16 @@ import time
 from CluodAPI_Terminal_Client.fly_utils import generate_uuid
 import threading
 
+OSD_FREQ = 50
+
+# RTMP 直播配置
+RTMP_URL = 'rtmp://192.168.31.69:1935/live/drone001'
+VIDEO_INDEX = 'normal-0'  # 视频流索引
+VIDEO_QUALITY = 1  # 0=自适应, 1=流畅, 2=标清, 3=高清, 4=超清
+video_id = "1581F7FVC257X00D6KZ2/88-0-0/normal-0"
+
+
+
 request_cloud_control_authorization_message = {
     "bid": generate_uuid(),
     "data": {
@@ -31,7 +41,7 @@ enter_live_flight_controls_mode_message = {
             "username": "sn_a_username"
         },
 
-        "osd_frequency": 30,
+        "osd_frequency": OSD_FREQ,
     },
     "tid": generate_uuid(),
     "timestamp": 1654070968655,
@@ -103,6 +113,55 @@ class Ser_puberlisher:
         if self.is_print:
             print(f"✅ 一键返航指令已发布到 thing/product/{self.gateway_sn}/services")
 
+    def publish_start_live(self):
+        # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
+        print(video_id)
+        request_data = {
+            "url": RTMP_URL,
+            "url_type": 1,  # RTMP
+            "video_id": video_id,
+            "video_quality": VIDEO_QUALITY
+        }
+        full_request = {
+            "bid": generate_uuid(),
+            "data": request_data,
+            "tid": generate_uuid(),
+            "timestamp": int(time.time() * 1000),
+            "method": "live_start_push"
+        }
+        self.client.publish(self.topic, payload=json.dumps(full_request))
+        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_start_push)")
+
+    def publish_stop_live(self):
+        # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
+        print(video_id)
+        request_data = {
+            "video_id": video_id,
+        }
+        full_request = {
+            "bid": generate_uuid(),
+            "data": request_data,
+            "tid": generate_uuid(),
+            "timestamp": int(time.time() * 1000),
+            "method": "live_stop_push"
+        }
+        self.client.publish(self.topic, payload=json.dumps(full_request))
+        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_stop_push)")
+
+    def publish_live_set_quality(self, quality_level):
+        full_request = {
+            "bid": generate_uuid(),
+            "data": {
+                "video_id": video_id,
+                "video_quality": quality_level
+            },
+            "tid": generate_uuid(),
+            "timestamp:": int(time.time() * 1000),
+            "method": "live_set_quality"
+        }
+        self.client.publish(self.topic, payload=json.dumps(full_request))
+        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_set_quality)")
+
     def publish_flyto_command(self, lat, lon, height):
         height = self.flight_state.takeoff_height + height
         flyto_message["data"]["points"][0]["latitude"] = lat
@@ -153,7 +212,7 @@ class Ser_puberlisher:
     def publish_flyto_list_command(self, pos_list):
         def publish_flyto_list_command_thread():
             print("="*50)
-            print("开始执行指点飞行列表...")
+            print(f"无人机{self.gateway_sn}开始执行指点飞行列表...,共{len(pos_list)}个点")
             for pos in pos_list:
                 latitude = pos[0]
                 longitude = pos[1]
@@ -163,7 +222,7 @@ class Ser_puberlisher:
                 if not result:
                     print("指点飞行列表执行中断")
                     return
-            print(f"指点飞行列表执行完毕,共{len(pos_list)}个点")
+            print(f"无人机{self.gateway_sn}指点飞行列表执行完毕,共{len(pos_list)}个点")
         thread = threading.Thread(target=publish_flyto_list_command_thread)
         thread.daemon = True
         thread.start()

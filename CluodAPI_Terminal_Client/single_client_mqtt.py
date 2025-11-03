@@ -39,7 +39,7 @@ class DJIMQTTClient:
         self.client.on_publish = self.on_publish
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.client.username_pw_set(f"{username}_{self.gateway_sn_code}", password)
+        self.client.username_pw_set(f"{username}", password)
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
         print(f"UAV {self.gateway_sn_code + 1} connected with result code " + str(rc))
@@ -63,6 +63,9 @@ class DJIMQTTClient:
             print("  g - 杆位锁定无人机")
             print("  h - 解锁飞机并飞行到指定高度")
             print("  e - 重置云台")
+            print("  r - 相机变焦")
+            print("  t - 设置直播镜头")
+            print("  y - 设置直播画质")
             print("=" * 50)
             print("  d - 开启/关闭信息打印")
             print("  o - 开始/结束信息保存")
@@ -107,6 +110,24 @@ class DJIMQTTClient:
                         user_input = input("请输入重置模式类型: ").strip()
                         user_input_num = int(user_input)
                         self.drc_controler.send_camera_reset_command(user_input_num)
+
+                    elif user_input == 'r': #相机变焦
+                        user_input = input("请输入变焦倍数(2--200): ").strip()
+                        user_input_num = int(user_input)
+                        self.drc_controler.send_camera_zoom_command(user_input_num)
+
+                    elif user_input == 't': #设置直播镜头
+                        type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
+                        print(" 1:红外,2:广角,3:变焦 ")
+                        user_input = input("请输入镜头类型: ").strip()
+                        user_input_num = int(user_input)
+                        self.drc_controler.set_live_camera_command(type_dict[user_input_num])
+
+                    elif user_input == 'y': #相机变焦
+                        print( "0:自适应,1:流畅,2:标清,3:高清,4:超清" )
+                        user_input = input("请输入直播画质: ").strip()
+                        user_input_num = int(user_input)
+                        self.ser_puberlisher.publish_live_set_quality(user_input_num)
 
                     elif user_input == 'd': #显示/关闭信息打印
                         self.DEBUG_FLAG = not self.DEBUG_FLAG

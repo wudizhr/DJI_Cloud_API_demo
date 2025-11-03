@@ -2,6 +2,8 @@ import json
 import threading
 import time
 
+video_id = "1581F7FVC257X00D6KZ2/88-0-0/normal-0"
+
 standard_control_message = {
     "seq": 0,
     "method": "stick_control",
@@ -20,6 +22,16 @@ standard_camera_message = {
     },
     "method": "drc_gimbal_reset",
     "seq": 0
+}
+
+standard_camera_zoom_message = {
+	"data": {
+		"camera_type": "zoom",
+		"payload_index": "88-0-0", #DJI Matrice 4E Camera
+		"zoom_factor": 2
+	},
+	"method": "drc_camera_focal_length_set",
+	"seq": 0
 }
 
 class DRC_controler:
@@ -119,10 +131,32 @@ class DRC_controler:
         self.client.publish(self.topic, payload)
         self.seq += 1
 
+    def send_camera_zoom_command(self, user_input_num):
+        """发送云台变焦命令到DRC"""
+        message = standard_camera_zoom_message.copy()
+        message["seq"] = self.seq
+        message["data"]["zoom_factor"] = user_input_num
+        payload = json.dumps(message)
+        self.client.publish(self.topic, payload)
+        self.seq += 1
+
+    def set_live_camera_command(self, camera_type):
+        message = {
+            "data": {
+                "video_id": video_id,
+                "video_type": camera_type
+            },
+            "timestamp:": int(time.time()*100),
+            "method": "drc_live_lens_change"
+        }
+        payload = json.dumps(message)
+        self.client.publish(self.topic, payload)
+        self.seq += 1
+
     def publish_heartbeat(self):
         if self.is_beat:
             heartbeat_msg = {
-                "data": {"timestamp": int(time.time() * 1000)},
+                "data": {"timestamp": int(time.time()*100)},
                 "method": "heart_beat",
                 "seq": self.seq,
             }
