@@ -17,6 +17,10 @@ source = "rtmp://81.70.222.38:1935/live/Drone001"
 fps_counter = FPSCounter()
 fps_counter.start()
 
+# 推理帧率计数器
+inference_fps_counter = FPSCounter()
+inference_fps_counter.start()
+
 
 def _run_inference_on_frame(frame):
     """Run both models on a frame and return a list of detections.
@@ -59,6 +63,10 @@ def inference_worker(frame_queue: queue.Queue, stop_event: threading.Event, out_
 
         # Run inference (may take time) and then store results
         detections = _run_inference_on_frame(frame)
+        
+        # 推理完成后计数
+        inference_fps_counter.increment()
+        
         with out_lock:
             shared['detections'] = detections
             shared['ts'] = time.time()
@@ -118,11 +126,20 @@ def extract_frames_from_rtmp(rtmp_url):
             thickness = 2
             margin = 6
             info_fps = f"FPS: {fps_counter.get_fps()}"
+            info_inference_fps = f"Inference FPS: {inference_fps_counter.get_fps()}"
+            
+            # 计算两行文本的尺寸
             (w1, h1), _ = cv2.getTextSize(info_fps, font, scale, thickness)
-            rect_w = w1 + margin * 2
-            rect_h = h1 + margin * 3
+            (w2, h2), _ = cv2.getTextSize(info_inference_fps, font, scale, thickness)
+            rect_w = max(w1, w2) + margin * 2
+            rect_h = h1 + h2 + margin * 4
+            
+            # 绘制背景框
             cv2.rectangle(display, (5, 5), (5 + rect_w, 5 + rect_h), (0, 0, 0), -1)
+            
+            # 绘制两行文本
             cv2.putText(display, info_fps, (10, 10 + h1), font, scale, (0, 255, 0), thickness)
+            cv2.putText(display, info_inference_fps, (10, 10 + h1 + h2 + margin), font, scale, (0, 255, 255), thickness)
 
             # overlay latest detections if available
             with out_lock:
