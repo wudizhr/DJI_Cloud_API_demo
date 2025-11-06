@@ -1,0 +1,31 @@
+.Info-box {
+    height: 1fr;
+    width: 1fr;
+    border: solid green;
+}
+
+.Log-box {
+    height: 1fr;
+    width: 1fr;
+    border: solid white;
+}
+
+.menu-item {
+    height: 1fr;
+    width: 1fr;
+    border: solid red;
+}
+
+.menu-print {
+    height: auto;
+    width: 1fr;
+    border: solid blue;
+}
+
+.menu-log {
+    height: 1fr;
+    width: 1fr;
+    border: solid purple;
+}
+
+

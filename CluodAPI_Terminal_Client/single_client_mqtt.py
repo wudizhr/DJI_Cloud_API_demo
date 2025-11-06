@@ -2,13 +2,15 @@ import os
 import json
 import time
 import threading
+import multiprocessing
 import sys
 import paho
 import paho.mqtt.client as mqtt
-from CluodAPI_Terminal_Client.key_hold_control import key_control
 from CluodAPI_Terminal_Client.DRC_controler import DRC_controler
 from CluodAPI_Terminal_Client.fly_utils import FlightState, Time_counter
 from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
+from CluodAPI_Terminal_Client.menu_control import MenuControl
+from stream_predict import extract_frames_from_rtmp
 
 host_addr = os.environ["HOST_ADDR"]
 username = os.environ["USERNAME"]
@@ -31,7 +33,26 @@ class DJIMQTTClient:
         self.setup_client()
         self.flyto_time_counter = Time_counter()
         self.drc_controler = DRC_controler(self.gateway_sn, self.client, self.flight_state)
-        self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, self.flight_state, self.flyto_time_counter)
+        self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, 
+                                               self.flight_state, self.flyto_time_counter, self.gateway_sn_code)
+        self.menu = MenuControl()
+        # Register menu controls (pass callables, do not call them here)
+        self.menu.add_control("x", self.ser_puberlisher.command_request_cloud_control_authorization, "请求授权云端控制消息")
+        self.menu.add_control("j", self.ser_puberlisher.command_enter_live_flight_controls_mode, "进入指令飞行控制模式")
+        self.menu.add_control("c", self.drc_controler.command_key_control, "键盘控制模式")
+        self.menu.add_control("f", self.drc_controler.command_unlock, "杆位解锁无人机")
+        self.menu.add_control("g", self.drc_controler.command_lock, "杆位锁定无人机")
+        self.menu.add_control("h", self.drc_controler.command_flyto_height, "解锁并飞行到指定高度")
+        self.menu.add_control("e", self.drc_controler.command_reset_camera, "重置云台")
+        self.menu.add_control("r", self.drc_controler.command_zoom_camera, "相机变焦")
+        self.menu.add_control("t", self.drc_controler.command_set_camera, "设置直播镜头")
+        self.menu.add_control("y", self.ser_puberlisher.command_set_live_quality, "设置直播画质")
+        self.menu.add_control("s", self.command_view_live_stream, "查看直播画面")
+        self.menu.add_control("d", self.command_change_debug_flag, "开启/关闭信息打印")
+        self.menu.add_control("o", self.command_change_save_flag, "开始/结束信息保存")
+        self.menu.add_control("m", self.drc_controler.command_change_beat_flag, "开启/关闭DRC心跳")
+        self.menu.add_control("n", self.drc_controler.command_change_drc_print, "开启/关闭DRC消息打印")
+    # q - 退出程序: map to a callable that exits
     
     def setup_client(self):
         """设置MQTT客户端"""
@@ -46,127 +67,56 @@ class DJIMQTTClient:
         client.subscribe(f"thing/product/{self.gateway_sn}/drc/up")
         client.subscribe(f"thing/product/{self.gateway_sn}/events")
         client.subscribe(f"thing/product/{self.gateway_sn}/services_reply")
-        # 启动键盘监听
-        # self.get_keyboard_listener()
+        client.subscribe(f"sys/product/{self.gateway_sn}/status")
     
     def on_publish(self, client, userdata, mid, reason_code, properties):
         """v2.x 版本的发布成功回调 - 5个参数"""
 
-    def ptint_menu(self):
-            print("\n" + "=" * 50)
-            print(f"{self.gateway_sn_code + 1}号无人机 {self.gateway_sn} 🎮 键盘控制菜单:")
-            print("=" * 50)
-            print("  a - 请求授权云端控制消息")
-            print("  j - 进入指令飞行控制模式")
-            print("  c - 进入键盘控制模式")
-            print("  f - 杆位解锁无人机")
-            print("  g - 杆位锁定无人机")
-            print("  h - 解锁飞机并飞行到指定高度")
-            print("  e - 重置云台")
-            print("  r - 相机变焦")
-            print("  t - 设置直播镜头")
-            print("  y - 设置直播画质")
-            print("=" * 50)
-            print("  d - 开启/关闭信息打印")
-            print("  o - 开始/结束信息保存")
-            print("  m - 开启/关闭DRC心跳")
-            print("  n - 开启/关闭DRC消息打印")
-            print("  q - 退出程序")
-            print("="*50)
+    def command_change_debug_flag(self):
+        self.DEBUG_FLAG = not self.DEBUG_FLAG
+        print("打印调试信息:", self.DEBUG_FLAG)   
     
-    def get_keyboard_listener(self):
-        """启动键盘输入监听"""
-        def listener():
-            end_flag = True
-            while end_flag:
-                try:
-                    self.ptint_menu()
-                    user_input = input("请输入命令: ").strip()
+    def command_change_save_flag(self):
+        self.SAVE_FLAG = not self.SAVE_FLAG
+        print("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}") 
 
-                    if user_input == 'a':  #请求授权云端控制消息
-                        self.ser_puberlisher.publish_request_cloud_control_authorization()
+    def command_view_live_stream(self):
+        rtmp_url = f"rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}"
+        # Use a separate process to run OpenCV GUI (cv2.imshow) because OpenCV
+        # windowing functions are not reliably thread-safe. Running in a new
+        # process isolates the GUI event loop and avoids issues when opening
+        # windows multiple times.
+        try:
+            # if there's already a live stream process, avoid starting another
+            proc = getattr(self, 'stream_process', None)
+            if proc is not None and proc.is_alive():
+                print("直播已在运行，不能重复开启")
+                return
 
-                    elif user_input == 'j':#    进入指令飞行控制模
-                        self.ser_puberlisher.publish_enter_live_flight_controls_mode()
-            
-                    elif user_input == 'f':   #杆位解锁无人机 roll: 1680 pitch: 360 throttle: 360 yaw: 360
-                        self.drc_controler.send_timing_control_command(1680, 365, 365, 365, 2, 10)
+            ctx = multiprocessing.get_context('spawn')
+            p = ctx.Process(target=extract_frames_from_rtmp, args=(rtmp_url,))
+            p.daemon = True
+            p.start()
+            self.stream_process = p
+            print(f"Started live view process (pid={p.pid})")
+        except Exception as e:
+            print(f"无法启动直播进程: {e}")
 
-                    elif user_input == 'g': #控制飞机降落锁定 roll: 1680 pitch: 360 throttle: 360 yaw: 360
-                        self.drc_controler.send_timing_control_command(1024, 1024, 365, 1024, 2, 10)
-
-                    elif user_input == 'c':
-                        key_control(self.drc_controler)
-
-                    elif user_input == 'h': #解锁飞机并飞行到指定高度
-                        user_input = input("请输入指定高度(相对当前): ").strip()
-                        user_height = float(user_input)
-                        user_input = input("请输入油门杆量: ").strip()
-                        user_throttle = float(user_input)
-                        self.drc_controler.send_stick_to_height(user_height, user_throttle)
-
-                    elif user_input == 'e': #重置云台
-                        print(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
-                        user_input = input("请输入重置模式类型: ").strip()
-                        user_input_num = int(user_input)
-                        self.drc_controler.send_camera_reset_command(user_input_num)
-
-                    elif user_input == 'r': #相机变焦
-                        user_input = input("请输入变焦倍数(2--200): ").strip()
-                        user_input_num = int(user_input)
-                        self.drc_controler.send_camera_zoom_command(user_input_num)
-
-                    elif user_input == 't': #设置直播镜头
-                        type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
-                        print(" 1:红外,2:广角,3:变焦 ")
-                        user_input = input("请输入镜头类型: ").strip()
-                        user_input_num = int(user_input)
-                        self.drc_controler.set_live_camera_command(type_dict[user_input_num])
-
-                    elif user_input == 'y': #相机变焦
-                        print( "0:自适应,1:流畅,2:标清,3:高清,4:超清" )
-                        user_input = input("请输入直播画质: ").strip()
-                        user_input_num = int(user_input)
-                        self.ser_puberlisher.publish_live_set_quality(user_input_num)
-
-                    elif user_input == 'd': #显示/关闭信息打印
-                        self.DEBUG_FLAG = not self.DEBUG_FLAG
-                        print("打印调试信息:", self.DEBUG_FLAG)
-                    
-                    elif user_input == 'o': #开始/结束信息保存
-                        self.SAVE_FLAG = not self.SAVE_FLAG
-                        print("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}")
-
-                    elif user_input == 'm': #开始/关闭DRC心跳
-                        self.drc_controler.is_beat = not self.drc_controler.is_beat
-                        print("DRC心跳是否开启:", self.drc_controler.is_beat)
-
-                    elif user_input == 'n': #开始/关闭DRC信息打印
-                        self.drc_controler.is_print = not self.drc_controler.is_print
-                        print("DRC消息是否开启:", self.drc_controler.is_print)
-                    
-                    elif user_input == 'q': #退出程序
-                        print("退出无人机单体菜单")
-                        end_flag = False
-                    
-                    else:
-                        print("未知命令，请重试")
-                        
-                except KeyboardInterrupt:
-                    print("\n程序被用户中断")
-                    # self.client.disconnect()
-                    sys.exit(0)
-                except Exception as e:
-                    print(f"输入错误: {e}")
-        
-        thread = threading.Thread(target=listener)
-        thread.daemon = True
-        # thread.start()
-        return thread
-    
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
         message = json.loads(msg.payload.decode("utf-8"))
         method = message.get("method", None)
+        if msg.topic == f"sys/product/{self.gateway_sn}/status":
+            # print(self.flight_state.device_sn)
+            if self.flight_state.device_sn == None:
+                if method == "update_topo":
+                    data = message.get("data", None)
+                    sub_devices = data.get("sub_devices", [])
+                    for device in sub_devices:
+                        device_sn = device.get("sn", "")
+                        self.flight_state.device_sn = device_sn
+                        line = f"📡 设备状态更新 - gateway_sn: {self.gateway_sn}, 设备SN: {device_sn}"
+                        if self.DEBUG_FLAG:
+                            print(line)
         if msg.topic == f"thing/product/{self.gateway_sn}/drc/up":
             if method == "osd_info_push":
                 self.now_time = time.time()
@@ -210,7 +160,8 @@ class DJIMQTTClient:
                 if result == 0:
                     print("✅ 一键返航指令发送成功")
                 else:
-                    print(f"❌ 一键返航指令发送失败，错误码: {result}")                
+                    print(f"❌ 一键返航指令发送失败，错误码: {result}") 
+
         elif msg.topic == f"thing/product/{self.gateway_sn}/events":
             if method == "fly_to_point_progress":
                 self.flyto_time_counter.update_last()

@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from CluodAPI_Terminal_Client.key_hold_control import key_control
 
 video_id = "1581F7FVC257X00D6KZ2/88-0-0/normal-0"
 
@@ -121,7 +122,6 @@ class DRC_controler:
         thread.daemon = True
         thread.start()
 
-
     def send_camera_reset_command(self, user_input_num):
         """发送云台复位命令到DRC"""
         message = standard_camera_message.copy()
@@ -175,6 +175,44 @@ class DRC_controler:
         t.daemon = True
         t.start()
 
+    def command_unlock(self):
+        self.send_timing_control_command(1680, 365, 365, 365, 2, 10)
 
+    def command_lock(self):
+        self.send_timing_control_command(1024, 1024, 365, 1024, 2, 10)
 
+    def command_key_control(self):
+        key_control(self)
 
+    def command_flyto_height(self):
+        user_input = input("请输入指定高度(相对当前): ").strip()
+        user_height = float(user_input)
+        user_input = input("请输入油门杆量: ").strip()
+        user_throttle = float(user_input)
+        self.send_stick_to_height(user_height, user_throttle)        
+
+    def command_reset_camera(self):
+        print(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
+        user_input = input("请输入重置模式类型: ").strip()
+        user_input_num = int(user_input)
+        self.send_camera_reset_command(user_input_num)
+
+    def command_zoom_camera(self):
+        user_input = input("请输入变焦倍数(2--200): ").strip()
+        user_input_num = int(user_input)
+        self.send_camera_zoom_command(user_input_num)
+
+    def command_set_camera(self):
+        type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
+        print(" 1:红外,2:广角,3:变焦 ")
+        user_input = input("请输入镜头类型: ").strip()
+        user_input_num = int(user_input)
+        self.set_live_camera_command(type_dict[user_input_num])
+
+    def command_change_beat_flag(self):
+        self.is_beat = not self.drc_controler.is_beat
+        print("DRC心跳是否开启:", self.is_beat)
+
+    def command_change_drc_print(self):
+        self.is_print = not self.drc_controler.is_print
+        print("DRC消息是否开启:", self.is_print)       

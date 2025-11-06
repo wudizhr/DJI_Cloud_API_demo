@@ -77,8 +77,9 @@ return_home_message = {
 flyto_dict = {100:"暂未收到返回数据", 101:"取消飞向目标点", 102:"执行失败", 103:"执行成功，已飞向目标点", 104:"执行中"}
 
 class Ser_puberlisher:
-    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter):
+    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter, gateway_sn_code):
         self.gateway_sn = gateway_sn
+        self.gateway_sn_code = gateway_sn_code
         self.topic = f"thing/product/{self.gateway_sn}/services"
         self.host_addr = host_addr
         self.client = client
@@ -114,11 +115,11 @@ class Ser_puberlisher:
 
     def publish_start_live(self):
         # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
-        print(video_id)
+        print(f"{self.flight_state.device_sn}/88-0-0/normal-0")
         request_data = {
-            "url": RTMP_URL,
+            "url": f'rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}',
             "url_type": 1,  # RTMP
-            "video_id": video_id,
+            "video_id": f"{self.flight_state.device_sn}/88-0-0/normal-0",
             "video_quality": VIDEO_QUALITY
         }
         full_request = {
@@ -135,7 +136,7 @@ class Ser_puberlisher:
         # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
         print(video_id)
         request_data = {
-            "video_id": video_id,
+            "video_id":f"{self.flight_state.device_sn}/88-0-0/normal-0",
         }
         full_request = {
             "bid": generate_uuid(),
@@ -151,7 +152,7 @@ class Ser_puberlisher:
         full_request = {
             "bid": generate_uuid(),
             "data": {
-                "video_id": video_id,
+                "video_id": f"{self.flight_state.device_sn}/88-0-0/normal-0",
                 "video_quality": quality_level
             },
             "tid": generate_uuid(),
@@ -239,6 +240,25 @@ class Ser_puberlisher:
         time.sleep(0.1)
         self.publish_enter_live_flight_controls_mode()
         time.sleep(0.1)
+
+    def command_return_home(self):
+        self.publish_return_home()
+
+    def command_start_live(self):
+        self.publish_start_live()
+
+    def command_stop_live(self):
+        self.publish_stop_live()
+
+    def command_request_cloud_control_authorization(self):
+        self.publish_request_cloud_control_authorization()
+
+    def command_enter_live_flight_controls_mode(self):
+        self.publish_enter_live_flight_controls_mode()
+
+    def command_set_live_quality(self, quality_level):
+        self.publish_live_set_quality(quality_level)
+        
 
 
     

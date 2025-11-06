@@ -66,6 +66,8 @@ class FlightState:
         self.height = height
         self.mode_code = -1
         self.takeoff_height = 0
+        self.battery_percentage = None
+        self.device_sn = None
 
 def get_points_from_txt(filename, height):
     coordinates = []
