@@ -12,7 +12,6 @@ from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
 from CluodAPI_Terminal_Client.menu_control import MenuControl
 from stream_predict import extract_frames_from_rtmp
 from textual.widgets import RichLog
-from DroneGeoLocator import DroneGeoLocator
 
 host_addr = os.environ["HOST_ADDR"]
 username = os.environ["USERNAME"]
@@ -51,6 +50,8 @@ class DJIMQTTClient:
         self.menu.add_control("t", self.drc_controler.command_set_camera, "设置直播镜头")
         self.menu.add_control("y", self.ser_puberlisher.command_set_live_quality, "设置直播画质")
         self.menu.add_control("s", self.command_view_live_stream, "查看直播画面")
+        self.menu.add_control("k", self.ser_puberlisher.command_start_live, "开始直播")
+        self.menu.add_control("l", self.ser_puberlisher.command_stop_live, "停止直播")
         self.menu.add_control("d", self.command_change_debug_flag, "开启/关闭信息打印")
         self.menu.add_control("o", self.command_change_save_flag, "开始/结束信息保存")
         self.menu.add_control("m", self.drc_controler.command_change_beat_flag, "开启/关闭DRC心跳")
@@ -58,13 +59,15 @@ class DJIMQTTClient:
         # q - 退出程序: map to a callable that exits
         self.main_log : RichLog = None
         self.per_log : RichLog = None
-        self.locator = DroneGeoLocator(
-            sensor_width_mm=8.5,      # 典型1/1.5英寸传感器
-            sensor_height_mm=6.4,     # 典型1/1.5英寸传感器
-            focal_length_mm=168.0,      # 长焦镜头
-            image_width_px=8000,      # 4K图像宽度
-            image_height_px=6000      # 4K图像高度
-        ) 
+        self.rtmp_url = f"rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}"
+        # self.locator = DroneGeoLocator(
+        #     sensor_width_mm=8.5,      # 典型1/1.5英寸传感器
+        #     sensor_height_mm=6.4,     # 典型1/1.5英寸传感器
+        #     focal_length_mm=168.0,      # 长焦镜头
+        #     image_width_px=8000,      # 4K图像宽度
+        #     image_height_px=6000      # 4K图像高度
+        # ) 
+        # self.stream_predictor = StreamPredictor(self.rtmp_url)
 
     def setup_client(self):
         """设置MQTT客户端"""
@@ -93,20 +96,16 @@ class DJIMQTTClient:
         print("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}") 
 
     def command_view_live_stream(self):
-        rtmp_url = f"rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}"
-        # Use a separate process to run OpenCV GUI (cv2.imshow) because OpenCV
-        # windowing functions are not reliably thread-safe. Running in a new
-        # process isolates the GUI event loop and avoids issues when opening
-        # windows multiple times.
         try:
             # if there's already a live stream process, avoid starting another
             proc = getattr(self, 'stream_process', None)
             if proc is not None and proc.is_alive():
-                print("直播画面已在运行，不能重复开启")
+                print("在线检测已在运行，不能重复开启")
+                self.stream_process.terminate()
+                print("已终止之前的在线检测进程")
                 return
-
             ctx = multiprocessing.get_context('spawn')
-            p = ctx.Process(target=extract_frames_from_rtmp, args=(rtmp_url,))
+            p = ctx.Process(target=extract_frames_from_rtmp, args=(self.rtmp_url,), kwargs={"show_window": True})
             p.daemon = True
             p.start()
             self.stream_process = p
@@ -136,7 +135,8 @@ class DJIMQTTClient:
                 self.flight_state.lon = data.get("longitude", None)
                 self.flight_state.lat = data.get("latitude", None)
                 self.flight_state.height = data.get("height", None)
-                line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height})"
+                self.flight_state.attitude_head = data.get("attitude_head", None)
+                line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height}, attitude_head: {self.flight_state.attitude_head}"
                 if self.DEBUG_FLAG:
                     print(line)
                 if self.SAVE_FLAG:

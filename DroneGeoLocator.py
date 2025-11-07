@@ -74,7 +74,7 @@ class DroneGeoLocator:
         gsd_x = (self.pixel_size_x * altitude) / self.focal_length
         gsd_y = (self.pixel_size_y * altitude) / self.focal_length
         
-        print(f"高度 {altitude}米: GSD = {gsd_x:.3f} × {gsd_y:.3f} 米/像素")
+        # print(f"高度 {altitude}米: GSD = {gsd_x:.3f} × {gsd_y:.3f} 米/像素")
         return gsd_x, gsd_y
     
     def pixel_to_geo_coordinates(self, drone_lat, drone_lon, altitude, pixel_x, pixel_y, yaw_deg=0):
@@ -99,14 +99,14 @@ class DroneGeoLocator:
         dx_pixels = pixel_x - self.cx  # X方向像素偏移
         dy_pixels = pixel_y - self.cy  # Y方向像素偏移
         
-        print(f"像素偏移: dx={dx_pixels:.1f}, dy={dy_pixels:.1f} 像素")
+        # print(f"像素偏移: dx={dx_pixels:.1f}, dy={dy_pixels:.1f} 像素")
         
         # 将像素偏移转换为地面距离偏移 (米)
         # 注意: 图像Y轴向下，所以dy取负号
         east_offset_m = dx_pixels * gsd_x
         north_offset_m = -dy_pixels * gsd_y
         
-        print(f"地面偏移 (未旋转): 东={east_offset_m:.2f}米, 北={north_offset_m:.2f}米")
+        # print(f"地面偏移 (未旋转): 东={east_offset_m:.2f}米, 北={north_offset_m:.2f}米")
         
         # 如果有偏航角，进行坐标旋转
         if abs(yaw_deg) > 1e-6:
@@ -116,7 +116,7 @@ class DroneGeoLocator:
             rotated_north = east_offset_m * math.sin(yaw_rad) + north_offset_m * math.cos(yaw_rad)
             east_offset_m = rotated_east
             north_offset_m = rotated_north
-            print(f"地面偏移 (旋转后): 东={east_offset_m:.2f}米, 北={north_offset_m:.2f}米")
+            # print(f"地面偏移 (旋转后): 东={east_offset_m:.2f}米, 北={north_offset_m:.2f}米")
         
         # 将地面偏移转换为经纬度偏移
         # 注意: 这是近似计算，适用于小范围区域
@@ -138,7 +138,7 @@ class DroneGeoLocator:
         target_lat = drone_lat + delta_lat
         target_lon = drone_lon + delta_lon
         
-        print(f"经纬度偏移: Δlat={delta_lat:.6f}°, Δlon={delta_lon:.6f}°")
+        # print(f"经纬度偏移: Δlat={delta_lat:.6f}°, Δlon={delta_lon:.6f}°")
         
         return target_lat, target_lon
     
