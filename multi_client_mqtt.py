@@ -5,6 +5,7 @@ import sys
 from CluodAPI_Terminal_Client.fly_utils import get_points_from_txt
 from CluodAPI_Terminal_Client.menu_control import MenuControl
 
+
 points_list = [None, None, None]
 
 points_list[0] = get_points_from_txt("uav1.txt", 80)
@@ -12,12 +13,12 @@ points_list[1] = get_points_from_txt("uav2.txt", 90)
 points_list[2] = get_points_from_txt("uav3.txt", 100)
 
 class MAIN_CONTROL_Client:
-    def __init__(self, client_num):
+    def __init__(self, client_num: int, is_deamon: bool = True):
         self.uav_select_num = 99
         self.client_num = client_num
         self.clients = []
         for i in range(self.client_num):
-            client = DJIMQTTClient(i)
+            client = DJIMQTTClient(i, is_deamon=is_deamon)
             self.clients.append(client)  
         self.main_menu = MenuControl() 
         # Register main_menu controls (pass callables, do not call them here)
@@ -32,7 +33,6 @@ class MAIN_CONTROL_Client:
         self.main_menu.add_control("5", self.mission_5, "执行预设多航点任务1")
         self.main_menu.add_control("6", self.mission_6, "执行预设多航点任务2")
         self.main_menu.add_control("7", self.mission_7, "执行预设多航点任务3")
-        self.main_menu.add_control("q", self.exit_program, "退出程序")
         self.menu_now = self.main_menu
 
     def print_menu(self):
@@ -78,7 +78,7 @@ class MAIN_CONTROL_Client:
         for client in self.clients:
             client.run()
         time.sleep(0.5)
-        self.start_keyboard_listener()
+        # self.start_keyboard_listener()
 
     def disconnect(self):
         for client in self.clients:
@@ -180,5 +180,7 @@ class MAIN_CONTROL_Client:
             self.clients[id-1].ser_puberlisher.publish_flyto_list_command(points_list[2])
 
 if __name__ == "__main__":
-    main_client = MAIN_CONTROL_Client(3)
+    main_client = MAIN_CONTROL_Client(3, is_deamon=False)
     main_client.run()
+    main_client.start_keyboard_listener()
+    # main_client.tui.run()

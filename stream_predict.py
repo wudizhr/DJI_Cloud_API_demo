@@ -39,7 +39,7 @@ def _run_inference_on_frame(frame):
             detections.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "label": label, "conf": conf})
 
         # normal model (lower conf, multiple classes)
-        results_normal = model_normal(frame, classes=[0, 2], imgsz=512, verbose=False, vid_stride=1, conf=0.2)
+        results_normal = model_normal(frame, classes=[0, 2], imgsz=512, verbose=False, vid_stride=1, conf=0.3)
         for box in results_normal[0].boxes:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
@@ -82,11 +82,21 @@ def draw_detections(frame, detections):
     """Draw detections on a frame (in-place)."""
     for det in detections:
         x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
+        center_point_x = int(x1 + (x2 - x1) / 2)
+        center_point_y = int(y1 + (y2 - y1) / 2)
         label = det['label']
         conf = det['conf']
         display_text = f"{label} {conf:.2f}"
         # Draw bounding box and label
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        if label == 'person':
+            rgb = (0, 255, 0)
+        elif label == 'car':
+            rgb = (255, 0, 0)
+        else:
+            rgb = (0, 0, 255)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), rgb, 2)
+        cv2.line(frame, (center_point_x, y1), (center_point_x, y2), rgb, 2)
+        cv2.line(frame, (x1, center_point_y), (x2, center_point_y), rgb, 2)
         cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
 

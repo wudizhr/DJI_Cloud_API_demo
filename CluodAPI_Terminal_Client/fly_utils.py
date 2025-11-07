@@ -64,6 +64,7 @@ class FlightState:
         self.lon = lon
         self.lat = lat
         self.height = height
+        self.attitude_head = 0
         self.mode_code = -1
         self.takeoff_height = 0
         self.battery_percentage = None

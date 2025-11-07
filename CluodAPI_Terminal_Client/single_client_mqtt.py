@@ -11,6 +11,8 @@ from CluodAPI_Terminal_Client.fly_utils import FlightState, Time_counter
 from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
 from CluodAPI_Terminal_Client.menu_control import MenuControl
 from stream_predict import extract_frames_from_rtmp
+from textual.widgets import RichLog
+from DroneGeoLocator import DroneGeoLocator
 
 host_addr = os.environ["HOST_ADDR"]
 username = os.environ["USERNAME"]
@@ -19,7 +21,8 @@ password = os.environ["PASSWORD"]
 gateway_sn = ["9N9CN2J0012CXY","9N9CN8400164WH","9N9CN180011TJN"]
 
 class DJIMQTTClient:
-    def __init__(self, gateway_sn_code):
+    def __init__(self, gateway_sn_code: int, is_deamon: bool = True):
+        self.is_deamon = is_deamon
         self.gateway_sn_code = gateway_sn_code
         self.gateway_sn = gateway_sn[gateway_sn_code]
         self.DEBUG_FLAG = False
@@ -52,8 +55,17 @@ class DJIMQTTClient:
         self.menu.add_control("o", self.command_change_save_flag, "开始/结束信息保存")
         self.menu.add_control("m", self.drc_controler.command_change_beat_flag, "开启/关闭DRC心跳")
         self.menu.add_control("n", self.drc_controler.command_change_drc_print, "开启/关闭DRC消息打印")
-    # q - 退出程序: map to a callable that exits
-    
+        # q - 退出程序: map to a callable that exits
+        self.main_log : RichLog = None
+        self.per_log : RichLog = None
+        self.locator = DroneGeoLocator(
+            sensor_width_mm=8.5,      # 典型1/1.5英寸传感器
+            sensor_height_mm=6.4,     # 典型1/1.5英寸传感器
+            focal_length_mm=168.0,      # 长焦镜头
+            image_width_px=8000,      # 4K图像宽度
+            image_height_px=6000      # 4K图像高度
+        ) 
+
     def setup_client(self):
         """设置MQTT客户端"""
         self.client = mqtt.Client(paho.mqtt.enums.CallbackAPIVersion.VERSION2, transport="tcp")
@@ -90,7 +102,7 @@ class DJIMQTTClient:
             # if there's already a live stream process, avoid starting another
             proc = getattr(self, 'stream_process', None)
             if proc is not None and proc.is_alive():
-                print("直播已在运行，不能重复开启")
+                print("直播画面已在运行，不能重复开启")
                 return
 
             ctx = multiprocessing.get_context('spawn')
@@ -186,7 +198,7 @@ class DJIMQTTClient:
             self.client.connect(host_addr, 1883, 60)
             self.client.loop_forever()
         thread = threading.Thread(target=client_start)
-        thread.daemon = False
+        thread.daemon = self.is_deamon
         thread.start()
 
 # # 运行客户端
