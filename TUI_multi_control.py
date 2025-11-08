@@ -2,7 +2,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header, Static, Input, RichLog, TabbedContent, TabPane, Label
 from textual.containers import HorizontalGroup, VerticalGroup
 from textual.reactive import reactive
-from multi_client_mqtt import MAIN_CONTROL_Client, MenuControl
+from multi_client_mqtt import MAIN_CONTROL_Client
 
 class UAV_shower(VerticalGroup):
     """A UAV shower widget."""
@@ -36,7 +36,8 @@ class Menu_widget(VerticalGroup):
 
     def compose(self) -> ComposeResult:
         """Create child widgets of a menu."""
-        yield Static("Main Menu")
+        yield Static("Control Menu")
+        yield Label("a  -   切换菜单", classes="change-print")
         yield Label("", classes="menu-print")
         yield RichLog(id="command_log", classes="menu-log", max_lines=100)
         yield Input(placeholder="Enter command here")
@@ -84,7 +85,7 @@ class UAV_TUI_App(App):
         
     def on_mount(self) -> None:
         """界面装配完成后触发，这时可以安全 query_one。"""
-        self.multi_client = MAIN_CONTROL_Client(3, is_deamon=False)
+        self.multi_client = MAIN_CONTROL_Client(3, is_deamon=True)
         command_log = self.query_one("#command_log ", RichLog)
         for i in range(3):
             self.multi_client.clients[i].main_log = command_log
