@@ -18,10 +18,10 @@ import time
 FEQUENCY = 20.0  # 20Hz
 SEND_INTERVAL = 1.0 / FEQUENCY  
 HOLD_THRESHOLD = SEND_INTERVAL  
-stick_vlue = 200.0  # 杆量
+stick_value = 200.0  # 杆量
 
-def ptint_menu():
-        print("\n" + "="*50)
+def print_key_menu():
+        print("\n")
         print("🎮 键盘控制无人机菜单:")
         print("  w - 前进")
         print("  a - 左移")
@@ -34,7 +34,6 @@ def ptint_menu():
         print("  g - 长按解锁")
         print("  h - 长按降落")
         print("  o - 退出键盘控制")
-        print("="*50)
 
 def sender(stop_event, last_w_time_holder, drc_controler, stick_vlue):
     """后台发送线程：每 SEND_INTERVAL 检查是否在按住并发送。"""
@@ -78,7 +77,7 @@ def key_control(drc_controler):
     print("按住 'w' 前进（示例打印），按 'o' 退出")
     print("确保终端有焦点并允许键盘重复")
 
-    ptint_menu()
+    print_key_menu()
 
     user_input = input("请输入频率: ").strip()
     freq = int(user_input)

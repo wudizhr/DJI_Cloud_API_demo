@@ -77,7 +77,7 @@ return_home_message = {
 flyto_dict = {100:"暂未收到返回数据", 101:"取消飞向目标点", 102:"执行失败", 103:"执行成功，已飞向目标点", 104:"执行中"}
 
 class Ser_puberlisher:
-    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter, gateway_sn_code):
+    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter, gateway_sn_code, writer=print):
         self.gateway_sn = gateway_sn
         self.gateway_sn_code = gateway_sn_code
         self.topic = f"thing/product/{self.gateway_sn}/services"
@@ -90,12 +90,13 @@ class Ser_puberlisher:
         self.flyto_state_code = 100
         self.flight_state = flight_state
         self.flyto_time_counter = time_counter
+        self.writer = writer
 
     def publish_request_cloud_control_authorization(self):
         request_cloud_control_authorization_message["timestamp"] = int(time.time() * 1000)
         self.client.publish(self.topic, payload=json.dumps(request_cloud_control_authorization_message))
         if self.is_print:
-            print(f"✅ 请求云端控制指令已发布到 thing/product/{self.gateway_sn}/services")
+            self.writer(f"✅ 请求云端控制指令已发布到 thing/product/{self.gateway_sn}/services")
 
     def publish_enter_live_flight_controls_mode(self):
         enter_live_flight_controls_mode_message["data"]["mqtt_broker"]["address"] = f"{self.host_addr}:1883"
@@ -103,7 +104,7 @@ class Ser_puberlisher:
         enter_live_flight_controls_mode_message["timestamp"] = int(time.time() * 1000)
         self.client.publish(self.topic, payload=json.dumps(enter_live_flight_controls_mode_message))
         if self.is_print:
-            print(f"✅ 进入指令飞行控制模式指令已发布到 thing/product/{self.gateway_sn}/services")
+            self.writer(f"✅ 进入指令飞行控制模式指令已发布到 thing/product/{self.gateway_sn}/services")
 
     def publish_return_home(self):
         return_home_message["bid"] = generate_uuid()
@@ -111,11 +112,11 @@ class Ser_puberlisher:
         return_home_message["timestamp"] = int(time.time()  * 1000)
         self.client.publish(self.topic, payload=json.dumps(return_home_message))
         if self.is_print:
-            print(f"✅ 一键返航指令已发布到 thing/product/{self.gateway_sn}/services")
+            self.writer(f"✅ 一键返航指令已发布到 thing/product/{self.gateway_sn}/services")
 
     def publish_start_live(self):
         # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
-        print(f"{self.flight_state.device_sn}/88-0-0/normal-0")
+        self.writer(f"{self.flight_state.device_sn}/88-0-0/normal-0")
         request_data = {
             "url": f'rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}',
             "url_type": 1,  # RTMP
@@ -130,11 +131,11 @@ class Ser_puberlisher:
             "method": "live_start_push"
         }
         self.client.publish(self.topic, payload=json.dumps(full_request))
-        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_start_push)")
+        self.writer(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_start_push)")
 
     def publish_stop_live(self):
         # video_id 字符串，格式: {aircraft_sn}/{payload_index}/{video_index}
-        print(video_id)
+        self.writer(video_id)
         request_data = {
             "video_id":f"{self.flight_state.device_sn}/88-0-0/normal-0",
         }
@@ -146,7 +147,7 @@ class Ser_puberlisher:
             "method": "live_stop_push"
         }
         self.client.publish(self.topic, payload=json.dumps(full_request))
-        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_stop_push)")
+        self.writer(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_stop_push)")
 
     def publish_live_set_quality(self, quality_level):
         full_request = {
@@ -160,7 +161,7 @@ class Ser_puberlisher:
             "method": "live_set_quality"
         }
         self.client.publish(self.topic, payload=json.dumps(full_request))
-        print(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_set_quality)")
+        self.writer(f"📤 无人机{self.gateway_sn}发送 MQTT 请求 (live_set_quality)")
 
     def publish_flyto_command(self, lat, lon, height):
         height = self.flight_state.takeoff_height + height
@@ -173,46 +174,46 @@ class Ser_puberlisher:
         self.client.publish(self.topic, payload=json.dumps(flyto_message))
 
         if self.is_print:
-            print(f"✅ 指点飞行指令已发布到 thing/product/{self.gateway_sn}/services")
-        print("="*50)
-        print("指点飞行指令详情:")
-        print(f"指点飞行指令ID: {self.flyto_id}")
-        print(f"目标点坐标: lat={lat}, lon={lon}, height={height}")
-        print("正在执行指点飞行指令...")
+            self.writer(f"✅ 指点飞行指令已发布到 thing/product/{self.gateway_sn}/services")
+        self.writer("="*50)
+        self.writer("指点飞行指令详情:")
+        self.writer(f"指点飞行指令ID: {self.flyto_id}")
+        self.writer(f"目标点坐标: lat={lat}, lon={lon}, height={height}")
+        self.writer("正在执行指点飞行指令...")
         last_time = time.time()
         while True:
             now = time.time()
             if self.flyto_reply_flag:
-                print("✔ 收到指点飞行指令回复")
+                self.writer("✔ 收到指点飞行指令回复")
                 break
             if now - last_time > 10:
-                print("❌ 指点飞行指令发送超时，请检查连接是否正常")
+                self.writer("❌ 指点飞行指令发送超时，请检查连接是否正常")
                 return False
             time.sleep(0.1)
         # 同步
         self.flyto_time_counter.update_now()
         self.flyto_time_counter.update_last()
         if self.flyto_reply_flag == 1:
-            print("正在飞往目标点...")
+            self.writer("正在飞往目标点...")
             while True:
-                print(f'\r 当前状态: {flyto_dict[self.flyto_state_code]}', end='', flush=True)
+                self.writer(f'\r 当前状态: {flyto_dict[self.flyto_state_code]}', end='', flush=True)
                 if self.flyto_state_code in [102, 103]:
-                    print()
-                    print(f"指点飞行结束,执行结果: { flyto_dict[self.flyto_state_code]} ")
+                    self.writer()
+                    self.writer(f"指点飞行结束,执行结果: { flyto_dict[self.flyto_state_code]} ")
                     if self.flyto_state_code == 103:
                         return True
                     else:
                         return False
                 if self.flyto_time_counter.get_time_minus() > 10:     
-                    print()
-                    print("❌ 指点飞行状态更新超时，请检查连接是否正常")
+                    self.writer()
+                    self.writer("❌ 指点飞行状态更新超时，请检查连接是否正常")
                     return False
                 time.sleep(0.1)
 
     def publish_flyto_list_command(self, pos_list):
         def publish_flyto_list_command_thread():
-            print("="*50)
-            print(f"无人机{self.gateway_sn}开始执行指点飞行列表...,共{len(pos_list)}个点")
+            self.writer("="*50)
+            self.writer(f"无人机{self.gateway_sn}开始执行指点飞行列表...,共{len(pos_list)}个点")
             for pos in pos_list:
                 latitude = pos[0]
                 longitude = pos[1]
@@ -220,9 +221,9 @@ class Ser_puberlisher:
                 result = self.publish_flyto_command(latitude, longitude, height)
                 self.update_flyto_id()
                 if not result:
-                    print("指点飞行列表执行中断")
+                    self.writer("指点飞行列表执行中断")
                     return
-            print(f"无人机{self.gateway_sn}指点飞行列表执行完毕,共{len(pos_list)}个点")
+            self.writer(f"无人机{self.gateway_sn}指点飞行列表执行完毕,共{len(pos_list)}个点")
         thread = threading.Thread(target=publish_flyto_list_command_thread)
         thread.daemon = True
         thread.start()
@@ -256,12 +257,20 @@ class Ser_puberlisher:
     def command_enter_live_flight_controls_mode(self):
         self.publish_enter_live_flight_controls_mode()
 
-    def command_set_live_quality(self, quality_level):
-        self.publish_live_set_quality(quality_level)
-        
+    def command_set_live_quality(self, user_input, state_count):
+        try:
+            if state_count == 0:
+                self.writer("请输入直播质量等级(0=自适应, 1=流畅, 2=标清, 3=高清, 4=超清): ")
+                return 1
+            elif state_count == 1:
+                self.user_input = user_input
+                quality_level = int(self.user_input)
+                self.publish_live_set_quality(quality_level)
+                return 0
+        except ValueError:
+            self.writer("输入错误,请重新输入!")
+            return state_count
 
-
-    
         
 
     

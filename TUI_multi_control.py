@@ -33,10 +33,13 @@ class Menu_widget(VerticalGroup):
 
     command_prompt = reactive("Enter command here")
     active_menu : str = reactive("")
+    is_change_menu : bool = False
+    main_title : str = reactive("无人机控制终端 - 已选择全部无人机")
 
     def compose(self) -> ComposeResult:
         """Create child widgets of a menu."""
-        yield Static("Main Menu")
+        yield Label("无人机控制终端 - 已选择全部无人机", classes="main-title")
+        yield Label("a  -   切换菜单", classes="change-print")
         yield Label("", classes="menu-print")
         yield RichLog(id="command_log", classes="menu-log", max_lines=100)
         yield Input(placeholder="Enter command here")
@@ -44,9 +47,29 @@ class Menu_widget(VerticalGroup):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Event handler called when input is submitted."""
         command = event.value
-        self.app.query_one("#command_log", RichLog).write(command)
-        event.input.value = ""  # clear the input after submission
-        self.app.multi_client.menu_now.loop_try(command)
+        event.input.value = ""
+        try:
+            if not self.is_change_menu:
+                if command == "a":
+                    self.app.query_one("#command_log", RichLog).write("请输入无人机编号(1~3),99为全部: ")
+                    self.is_change_menu = True
+                elif command == "exit":
+                    self.app.multi_client.stop_all_clients()
+                    self.app.exit()
+                elif command == "clear":
+                    self.app.query_one("#command_log", RichLog).clear()
+                else:
+                    self.app.query_one("#command_log", RichLog).write(command)
+                    self.app.multi_client.menu_now.loop_try(command)         
+            else:
+                self.is_change_menu = False
+                uav_id = int(command)
+                self.main_title = f"无人机控制终端 - 已选择无人机{uav_id}" if uav_id in [1,2,3] else "无人机控制终端 - 已选择全部无人机"
+                self.app.multi_client.change_uav_select_num(command)
+                self.active_menu = self.app.multi_client.menu_now.get_menu_str()
+        except Exception as e:
+            self.app.query_one("#command_log", RichLog).write(f"命令执行错误: {e}")
+
 
     def watch_command_prompt(self, prompt: str) -> None:
         """Called when the command_prompt changes."""
@@ -58,6 +81,11 @@ class Menu_widget(VerticalGroup):
         """Called when the active_menu changes."""
         menu_label = self.query_one(".menu-print", Label)
         menu_label.update(menu_str)
+
+    def watch_main_title(self, title: str) -> None:
+        """Called when the main-title changes."""
+        title_static = self.query_one(".main-title", Label)
+        title_static.update(title)
 
 class Main_display(HorizontalGroup):
     """The main display widget."""
@@ -84,11 +112,11 @@ class UAV_TUI_App(App):
         
     def on_mount(self) -> None:
         """界面装配完成后触发，这时可以安全 query_one。"""
-        self.multi_client = MAIN_CONTROL_Client(3, is_deamon=False)
+        sub_log_list = []
         command_log = self.query_one("#command_log ", RichLog)
         for i in range(3):
-            self.multi_client.clients[i].main_log = command_log
-            self.multi_client.clients[i].per_log = command_log = self.query_one(f"#UAV{i + 1}  #uav_log", RichLog)
+            sub_log_list.append(self.query_one(f"#UAV{i + 1}  #uav_log", RichLog))
+        self.multi_client = MAIN_CONTROL_Client(3, is_deamon=True, main_log=command_log, sub_log_list=sub_log_list)
         self.multi_client.run()
         self.query_one(Menu_widget).active_menu = self.multi_client.menu_now.get_menu_str()
 
