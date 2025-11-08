@@ -2,7 +2,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header, Static, Input, RichLog, TabbedContent, TabPane, Label
 from textual.containers import HorizontalGroup, VerticalGroup
 from textual.reactive import reactive
-from multi_client_mqtt import MAIN_CONTROL_Client, MenuControl
+from multi_client_mqtt import MAIN_CONTROL_Client
 
 class UAV_shower(VerticalGroup):
     """A UAV shower widget."""

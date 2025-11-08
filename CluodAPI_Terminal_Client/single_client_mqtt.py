@@ -53,7 +53,7 @@ class DJIMQTTClient:
         self.menu.add_control("r", self.drc_controler.command_zoom_camera, "相机变焦", is_states=1)
         self.menu.add_control("t", self.drc_controler.command_set_camera, "设置直播镜头", is_states=1)
         self.menu.add_control("y", self.ser_puberlisher.command_set_live_quality, "设置直播画质", is_states=1)
-        self.menu.add_control("s", self.command_view_live_stream, "查看直播画面", is_states=1)
+        self.menu.add_control("s", self.command_view_live_stream, "查看直播画面")
         self.menu.add_control("k", self.ser_puberlisher.command_start_live, "开始直播")
         self.menu.add_control("l", self.ser_puberlisher.command_stop_live, "停止直播")
         self.menu.add_control("d", self.command_change_debug_flag, "开启/关闭信息打印")
@@ -71,7 +71,7 @@ class DJIMQTTClient:
         self.client.username_pw_set(f"{username}", password)
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
-        print(f"UAV {self.gateway_sn_code + 1} connected with result code " + str(rc))
+        self.main_log.write(f"UAV {self.gateway_sn_code + 1} connected with result code " + str(rc))
         client.subscribe(f"thing/product/{self.gateway_sn}/drc/up")
         client.subscribe(f"thing/product/{self.gateway_sn}/events")
         client.subscribe(f"thing/product/{self.gateway_sn}/services_reply")
@@ -82,29 +82,34 @@ class DJIMQTTClient:
 
     def command_change_debug_flag(self):
         self.DEBUG_FLAG = not self.DEBUG_FLAG
-        print("打印调试信息:", self.DEBUG_FLAG)   
+        self.per_log.write("打印调试信息:", self.DEBUG_FLAG)   
     
     def command_change_save_flag(self):
         self.SAVE_FLAG = not self.SAVE_FLAG
-        print("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}") 
+        self.per_log.write("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}") 
 
     def command_view_live_stream(self):
         try:
-            # if there's already a live stream process, avoid starting another
-            proc = getattr(self, 'stream_process', None)
-            if proc is not None and proc.is_alive():
-                print("在线检测已在运行，不能重复开启")
-                self.stream_process.terminate()
-                print("已终止之前的在线检测进程")
-                return
-            ctx = multiprocessing.get_context('spawn')
-            p = ctx.Process(target=extract_frames_from_rtmp, args=(self.rtmp_url,), kwargs={"show_window": True})
-            p.daemon = True
+            proc = getattr(self, "stream_process", None)
+            if proc and proc.is_alive():
+                self.per_log.write("直播进程已在运行，正在终止旧进程")
+                proc.terminate()
+                proc.join(timeout=2)
+            # Linux 优先用 fork，减少 spawn 带来的 fd 问题
+            start_method = "fork" if sys.platform.startswith("linux") else "spawn"
+            ctx = multiprocessing.get_context(start_method)
+            p = ctx.Process(
+                target=extract_frames_from_rtmp,
+                args=(self.rtmp_url,),
+                kwargs={"show_window": True},
+                name=f"live_view_{self.gateway_sn_code}"
+            )
+            # 不设为 daemon，方便正常清理
             p.start()
             self.stream_process = p
-            print(f"Started live view process (pid={p.pid})")
+            self.per_log.write(f"✅ 直播进程已启动 pid={p.pid}, method={start_method}")
         except Exception as e:
-            print(f"无法启动直播进程: {e}")
+            self.per_log.write(f"❌ 启动直播进程失败: {e}")
 
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
         message = json.loads(msg.payload.decode("utf-8"))
@@ -120,7 +125,7 @@ class DJIMQTTClient:
                         self.flight_state.device_sn = device_sn
                         line = f"📡 设备状态更新 - gateway_sn: {self.gateway_sn}, 设备SN: {device_sn}"
                         if self.DEBUG_FLAG:
-                            print(line)
+                            self.per_log.write(line)
         if msg.topic == f"thing/product/{self.gateway_sn}/drc/up":
             if method == "osd_info_push":
                 self.now_time = time.time()
@@ -131,7 +136,7 @@ class DJIMQTTClient:
                 self.flight_state.attitude_head = data.get("attitude_head", None)
                 line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height}, attitude_head: {self.flight_state.attitude_head}"
                 if self.DEBUG_FLAG:
-                    print(line)
+                    self.per_log.write(line)
                 if self.SAVE_FLAG:
                     message_with_timestamp = {
                         "timestamp": time.time(),
@@ -144,7 +149,7 @@ class DJIMQTTClient:
                                 sf.write(json.dumps(message_with_timestamp, ensure_ascii=False) + "\n")
                     except Exception as e:
                         # 不要抛出异常以免影响主线程，记录错误到 stderr
-                        print(f"❌ 保存 OSD 数据失败: {e}", file=sys.stderr)
+                        self.per_log.write(f"❌ 保存 OSD 数据失败: {e}", file=sys.stderr)
 
             elif method == "drc_drone_state_push":
                 data = message.get("data", None)
@@ -156,16 +161,16 @@ class DJIMQTTClient:
                 result = message.get("data", {}).get("result", -1)
                 if result == 0:
                     self.ser_puberlisher.flyto_reply_flag = 1
-                    print("✅ 指点飞指令发送成功")
+                    self.per_log.write("✅ 指点飞指令发送成功")
                 else:
                     self.ser_puberlisher.flyto_reply_flag = 2
-                    print(f"❌ 指点飞行指令发送失败，错误码: {result}")
+                    self.per_log.write(f"❌ 指点飞行指令发送失败，错误码: {result}")
             elif method == "return_home":
                 result = message.get("data", {}).get("result", -1)
                 if result == 0:
-                    print("✅ 一键返航指令发送成功")
+                    self.per_log.write("✅ 一键返航指令发送成功")
                 else:
-                    print(f"❌ 一键返航指令发送失败，错误码: {result}") 
+                    self.per_log.write(f"❌ 一键返航指令发送失败，错误码: {result}") 
 
         elif msg.topic == f"thing/product/{self.gateway_sn}/events":
             if method == "fly_to_point_progress":
