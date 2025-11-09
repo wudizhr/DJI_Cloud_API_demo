@@ -73,7 +73,7 @@ class MAIN_CONTROL_Client:
             self.menu_now = self.main_menu
         else:
             self.main_log.write("输入编号错误,请重新输入!")
-            return
+        self.menu_now.menu_reset()
         
     def run(self):
         for client in self.clients:

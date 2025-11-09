@@ -77,7 +77,7 @@ return_home_message = {
 flyto_dict = {100:"暂未收到返回数据", 101:"取消飞向目标点", 102:"执行失败", 103:"执行成功，已飞向目标点", 104:"执行中"}
 
 class Ser_puberlisher:
-    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter, gateway_sn_code, writer=print):
+    def __init__(self, gateway_sn, client, host_addr, flight_state, time_counter, gateway_sn_code, writer=print, main_writer=print):
         self.gateway_sn = gateway_sn
         self.gateway_sn_code = gateway_sn_code
         self.topic = f"thing/product/{self.gateway_sn}/services"
@@ -91,6 +91,7 @@ class Ser_puberlisher:
         self.flight_state = flight_state
         self.flyto_time_counter = time_counter
         self.writer = writer
+        self.main_writer = main_writer
 
     def publish_request_cloud_control_authorization(self):
         request_cloud_control_authorization_message["timestamp"] = int(time.time() * 1000)
@@ -260,7 +261,7 @@ class Ser_puberlisher:
     def command_set_live_quality(self, user_input, state_count):
         try:
             if state_count == 0:
-                self.writer("请输入直播质量等级(0=自适应, 1=流畅, 2=标清, 3=高清, 4=超清): ")
+                self.main_writer("请输入直播质量等级(0=自适应, 1=流畅, 2=标清, 3=高清, 4=超清): ")
                 return 1
             elif state_count == 1:
                 self.user_input = user_input
@@ -268,7 +269,7 @@ class Ser_puberlisher:
                 self.publish_live_set_quality(quality_level)
                 return 0
         except ValueError:
-            self.writer("输入错误,请重新输入!")
+            self.main_writer("输入错误,请重新输入!")
             return state_count
 
         

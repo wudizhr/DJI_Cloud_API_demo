@@ -36,13 +36,14 @@ standard_camera_zoom_message = {
 }
 
 class DRC_controler:
-    def __init__(self, gateway_sn, client, flight_state, writer=print):
+    def __init__(self, gateway_sn, client, flight_state, writer=print, main_writer=print):
         self.gateway_sn = gateway_sn
         self.topic = f"thing/product/{self.gateway_sn}/drc/down" 
         self.seq = 0
         self.is_print = False
         self.drc_state = False
         self.writer = writer
+        self.main_writer = main_writer
         #   drc_heartbeat
         self.is_beat = True
         self.heart_freq = 1.0  # 心跳频率，单位Hz
@@ -188,13 +189,13 @@ class DRC_controler:
     def command_flyto_height(self, user_input, state_count):
         try:
             if state_count == 0:
-                self.writer("请输入指定高度(相对当前): ")
+                self.main_writer("请输入指定高度(相对当前): ")
                 return 1
             elif state_count == 1:
                 self.user_input = user_input
                 self.user_height = float(self.user_input)
-                self.writer(f"已设定高度: {self.user_height}米")
-                self.writer("请输入指定油门杆量: ")
+                self.main_writer(f"已设定高度: {self.user_height}米")
+                self.main_writer("请输入指定油门杆量: ")
                 return 2
             elif state_count == 2:
                 self.user_input = user_input
@@ -202,13 +203,13 @@ class DRC_controler:
                 self.send_stick_to_height(self.user_height, self.user_throttle)
                 return 0
         except ValueError:
-            self.writer("输入错误,请重新输入!")
+            self.main_writer("输入错误,请重新输入!")
             return state_count
 
     def command_reset_camera(self, user_input, state_count):
         try:
             if state_count == 0:
-                self.writer(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
+                self.main_writer(" 0:回中,1:向下,2:偏航回中,3:俯仰向下 ")
                 return 1
             elif state_count == 1:
                 self.user_input = user_input
@@ -216,13 +217,13 @@ class DRC_controler:
                 self.send_camera_reset_command(user_input_num)
                 return 0
         except ValueError:
-            self.writer("输入错误,请重新输入!")
+            self.main_writer("输入错误,请重新输入!")
             return state_count
 
     def command_zoom_camera(self, user_input, state_count):
         try:
             if state_count == 0:
-                self.writer("请输入变焦倍数(整数): ")
+                self.main_writer("请输入变焦倍数(整数): ")
                 return 1
             elif state_count == 1:
                 self.user_input = user_input
@@ -230,14 +231,14 @@ class DRC_controler:
                 self.send_camera_zoom_command(user_input_num)
                 return 0
         except ValueError:
-            self.writer("输入错误,请重新输入!")
+            self.main_writer("输入错误,请重新输入!")
             return state_count
 
     def command_set_camera(self, user_input, state_count):
         type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
         try:
             if state_count == 0:
-                self.writer(" 1:红外,2:广角,3:变焦 ")
+                self.main_writer(" 1:红外,2:广角,3:变焦 ")
                 return 1
             elif state_count == 1:
                 self.user_input = user_input
@@ -245,13 +246,13 @@ class DRC_controler:
                 self.set_live_camera_command(type_dict[user_input_num])
                 return 0
         except ValueError:
-            self.writer("输入错误,请重新输入!")
+            self.main_writer("输入错误,请重新输入!")
             return state_count
 
     def command_change_beat_flag(self):
-        self.is_beat = not self.drc_controler.is_beat
-        self.writer("DRC心跳是否开启:", self.is_beat)
+        self.is_beat = not self.is_beat
+        self.main_writer("DRC心跳是否开启:", self.is_beat)
 
     def command_change_drc_print(self):
-        self.is_print = not self.drc_controler.is_print
-        self.writer("DRC消息是否开启:", self.is_print)       
+        self.is_print = not self.is_print
+        self.main_writer("DRC消息是否开启:", self.is_print)       

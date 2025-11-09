@@ -10,7 +10,7 @@ from CluodAPI_Terminal_Client.DRC_controler import DRC_controler
 from CluodAPI_Terminal_Client.fly_utils import FlightState, Time_counter
 from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
 from CluodAPI_Terminal_Client.menu_control import MenuControl
-from stream_predict import extract_frames_from_rtmp
+from stream_predict import extract_frames_from_rtmp, StreamPredictor
 from textual.widgets import RichLog
 
 host_addr = os.environ["HOST_ADDR"]
@@ -38,9 +38,11 @@ class DJIMQTTClient:
         self.per_log = per_log
         self.per_log.write(f"UAV{self.gateway_sn_code + 1} 日志已连接") if self.per_log else None
         self.rtmp_url = f"rtmp://81.70.222.38:1935/live/Drone00{self.gateway_sn_code + 1}"
-        self.drc_controler = DRC_controler(self.gateway_sn, self.client, self.flight_state, writer=self.per_log.write if self.per_log else print)
+        self.drc_controler = DRC_controler(self.gateway_sn, self.client, self.flight_state, writer=self.per_log.write if self.per_log else print,
+                                           main_writer=self.main_log.write if self.main_log else print)
         self.ser_puberlisher = Ser_puberlisher(self.gateway_sn, self.client, host_addr, 
-                                               self.flight_state, self.flyto_time_counter, self.gateway_sn_code, writer=self.per_log.write if self.per_log else print)
+                                               self.flight_state, self.flyto_time_counter, self.gateway_sn_code, writer=self.per_log.write if self.per_log else print,
+                                               main_writer=self.main_log.write if self.main_log else print)
         self.menu = MenuControl(writer=self.main_log.write if self.main_log else print)
         # Register menu controls (pass callables, do not call them here)
         self.menu.add_control("x", self.ser_puberlisher.command_request_cloud_control_authorization, "请求授权云端控制消息")
@@ -53,13 +55,15 @@ class DJIMQTTClient:
         self.menu.add_control("r", self.drc_controler.command_zoom_camera, "相机变焦", is_states=1)
         self.menu.add_control("t", self.drc_controler.command_set_camera, "设置直播镜头", is_states=1)
         self.menu.add_control("y", self.ser_puberlisher.command_set_live_quality, "设置直播画质", is_states=1)
-        self.menu.add_control("s", self.command_view_live_stream, "查看直播画面")
+        self.menu.add_control("s", self.command_view_live_stream, "打开/关闭直播画面检测")
         self.menu.add_control("k", self.ser_puberlisher.command_start_live, "开始直播")
         self.menu.add_control("l", self.ser_puberlisher.command_stop_live, "停止直播")
         self.menu.add_control("d", self.command_change_debug_flag, "开启/关闭信息打印")
         self.menu.add_control("o", self.command_change_save_flag, "开始/结束信息保存")
         self.menu.add_control("m", self.drc_controler.command_change_beat_flag, "开启/关闭DRC心跳")
         self.menu.add_control("n", self.drc_controler.command_change_drc_print, "开启/关闭DRC消息打印")
+
+        self.stream_predictor = StreamPredictor(self.rtmp_url, show_window=False, flight_state=self.flight_state, writer=self.per_log.write if self.per_log else print)
         # q - 退出程序: map to a callable that exits
 
     def setup_client(self):
@@ -89,27 +93,39 @@ class DJIMQTTClient:
         self.per_log.write("保存信息:", self.SAVE_FLAG, f"保存位置: {self.save_name}") 
 
     def command_view_live_stream(self):
+        """打开/关闭直播画面检测线程 (切换逻辑)。
+
+        行为:
+        - 若线程正在运行 -> 停止并清理。
+        - 若线程未运行 -> 创建新的 StreamPredictor 并启动。
+        注意: 原有的 StreamPredictor.stop() 会设置 stop_event，需重新实例化才能再次启动。
+        """
         try:
-            proc = getattr(self, "stream_process", None)
-            if proc and proc.is_alive():
-                self.per_log.write("直播进程已在运行，正在终止旧进程")
-                proc.terminate()
-                proc.join(timeout=2)
-            # Linux 优先用 fork，减少 spawn 带来的 fd 问题
-            start_method = "fork" if sys.platform.startswith("linux") else "spawn"
-            ctx = multiprocessing.get_context(start_method)
-            p = ctx.Process(
-                target=extract_frames_from_rtmp,
-                args=(self.rtmp_url,),
-                kwargs={"show_window": True},
-                name=f"live_view_{self.gateway_sn_code}"
-            )
-            # 不设为 daemon，方便正常清理
-            p.start()
-            self.stream_process = p
-            self.per_log.write(f"✅ 直播进程已启动 pid={p.pid}, method={start_method}")
+            thread = getattr(self.stream_predictor, "main_thread", None)
+            if thread and thread.is_alive():
+                # 关闭逻辑
+                try:
+                    self.stream_predictor.stop()
+                    self.stream_predictor.join(timeout=2)
+                    self.per_log.write("🛑 已关闭直播检测线程")
+                except Exception as e:
+                    self.per_log.write(f"❌ 关闭直播检测线程失败: {e}")
+            else:
+                # 启动逻辑: 重新创建实例，避免 stop_event 已经被置位无法再次运行
+                try:
+                    self.stream_predictor = StreamPredictor(
+                        self.rtmp_url,
+                        show_window=False,
+                        flight_state=self.flight_state,
+                        writer=self.per_log.write if self.per_log else print
+                    )
+                    self.stream_predictor.start_in_thread()
+                    self.per_log.write("✅ 启动直播检测线程成功")
+                except Exception as e:
+                    self.per_log.write(f"❌ 启动直播检测线程失败: {e}")
         except Exception as e:
-            self.per_log.write(f"❌ 启动直播进程失败: {e}")
+            # 最外层兜底
+            self.per_log.write(f"❌ 切换直播检测线程出现未处理异常: {e}")
 
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
         message = json.loads(msg.payload.decode("utf-8"))

@@ -35,6 +35,7 @@ class StreamPredictor:
         show_window: bool = True,
         stop_event=None,
         flight_state: FlightState = None,
+        writer=print
     ) -> None:
         self.rtmp_url = rtmp_url
         self.window_name = window_name
@@ -67,6 +68,7 @@ class StreamPredictor:
             image_height_px=6000      # 4K图像高度
         ) 
         self.flight_state = flight_state or FlightState()
+        self.writer = writer
 
     # --- 推理相关 ---
     def _run_inference_on_frame(self, frame):
@@ -88,7 +90,7 @@ class StreamPredictor:
                 label = self.model_normal.names.get(cls_id, str(cls_id))
                 detections.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "label": label, "conf": conf})
         except Exception as e:
-            print(f"Inference error: {e}")
+            self.writer(f"Inference error: {e}")
         return detections
 
     def _inference_worker(self):
@@ -117,19 +119,21 @@ class StreamPredictor:
     def run(self):
         self.cap = cv2.VideoCapture(self.rtmp_url)
         if not self.cap.isOpened():
-            print(f"错误: 无法打开RTMP流 {self.rtmp_url}")
+            self.writer(f"错误: 无法打开RTMP流 {self.rtmp_url}")
             return
-        print(f"成功连接到RTMP流: {self.rtmp_url}")
+        self.writer(f"成功连接到RTMP流: {self.rtmp_url}")
+        ret, frame = self.cap.read()
+        self.locator.image_height = frame.shape[0]
+        self.locator.image_width = frame.shape[1]
+        self.writer(f"视频分辨率: {self.locator.image_width}x{self.locator.image_height}")
         self._start_worker()
         font = cv2.FONT_HERSHEY_SIMPLEX; scale = 0.8; thickness = 2; margin = 6
         try:
             while not self.stop_event.is_set():
                 ret, frame = self.cap.read()
                 if not ret or frame is None:
-                    print("无法读取帧或流已结束")
+                    self.writer("无法读取帧或流已结束")
                     break
-                self.locator.image_height = frame.shape[0]
-                self.locator.image_width = frame.shape[1]
                 self.fps_counter.increment()
                 display = frame.copy()
                 info_fps = f"FPS: {self.fps_counter.get_fps()}"
@@ -153,13 +157,14 @@ class StreamPredictor:
                 except queue.Full:
                     pass
                 if self.show_window:
+                    # self.writer(self.show_window)
                     cv2.imshow(self.window_name, display)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
         except KeyboardInterrupt:
-            print("用户中断提取过程")
+            self.writer("用户中断提取过程")
         except Exception as e:
-            print(f"发生错误: {e}")
+            self.writer(f"发生错误: {e}")
         finally:
             self.stop()
 
@@ -205,6 +210,9 @@ class StreamPredictor:
 
     def get_target_pos(self, detections):
         """Draw detections on a frame (in-place)."""
+        if self.flight_state.lat is None or self.flight_state.lon is None:
+            self.writer("无人机GPS位置未知，无法计算目标经纬度")
+            return
         for det in detections:
             x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
             center_point_x = int(x1 + (x2 - x1) / 2)
@@ -215,12 +223,11 @@ class StreamPredictor:
             target_lat, target_lon = self.locator.pixel_to_geo_coordinates(
                 self.flight_state.lat, self.flight_state.lon,
                 (self.flight_state.height - self.flight_state.takeoff_height),
-                # 100,  # 临时使用固定高度100米进行计算
                 center_point_x, center_point_y, self.flight_state.attitude_head
             )
-            print(f"像素偏移: dx={center_point_x:.1f}, dy={center_point_y:.1f} 像素")
-            print(f"检测到 {display_text} at (lat: {target_lat}, lon: {target_lon})")
-
+            self.writer(f"像素偏移: dx={center_point_x:.1f}, dy={center_point_y:.1f} 像素")
+            self.writer(f"检测到 {display_text} at (lat: {target_lat}, lon: {target_lon})")
+            self.writer(f"无人机当前位置 (lat: {self.flight_state.lat}, lon: {self.flight_state.lon}, alt: {self.flight_state.height - self.flight_state.takeoff_height} m, head: {self.flight_state.attitude_head}°)")
 
 def draw_detections(frame, detections):
     """Draw detections on a frame (in-place)."""
@@ -242,11 +249,11 @@ def draw_detections(frame, detections):
         cv2.line(frame, (center_point_x, y1), (center_point_x, y2), rgb, 2)
         cv2.line(frame, (x1, center_point_y), (x2, center_point_y), rgb, 2)
         cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        print(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
+        # print(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
 
-def extract_frames_from_rtmp(rtmp_url: str, show_window : bool = False):
+def extract_frames_from_rtmp(rtmp_url: str, show_window : bool = True, flight_state: FlightState = None, writer=print):
     """向后兼容的包装函数，内部改用 StreamPredictor。"""
-    predictor = StreamPredictor(rtmp_url, show_window=show_window)
+    predictor = StreamPredictor(rtmp_url, show_window=show_window, flight_state=flight_state, writer=writer)
     predictor.run()
 
 

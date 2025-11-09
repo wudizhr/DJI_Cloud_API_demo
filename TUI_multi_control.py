@@ -21,11 +21,11 @@ class UAV_tabs(VerticalGroup):
         """Create child widgets of a UAV tabs."""
         # Each tab pane contains a separate UAV_shower instance
         with TabbedContent():
-            with TabPane("UAV1"):
+            with TabPane("UAV1", id="uav1"):
                 yield UAV_shower(id="UAV1")
-            with TabPane("UAV2"):
+            with TabPane("UAV2", id="uav2"):
                 yield UAV_shower(id="UAV2")
-            with TabPane("UAV3"):
+            with TabPane("UAV3", id="uav3"):
                 yield UAV_shower(id="UAV3")
 
 class Menu_widget(VerticalGroup):
@@ -54,7 +54,6 @@ class Menu_widget(VerticalGroup):
                     self.app.query_one("#command_log", RichLog).write("请输入无人机编号(1~3),99为全部: ")
                     self.is_change_menu = True
                 elif command == "exit":
-                    self.app.multi_client.stop_all_clients()
                     self.app.exit()
                 elif command == "clear":
                     self.app.query_one("#command_log", RichLog).clear()
@@ -67,6 +66,8 @@ class Menu_widget(VerticalGroup):
                 self.main_title = f"无人机控制终端 - 已选择无人机{uav_id}" if uav_id in [1,2,3] else "无人机控制终端 - 已选择全部无人机"
                 self.app.multi_client.change_uav_select_num(command)
                 self.active_menu = self.app.multi_client.menu_now.get_menu_str()
+                if uav_id in [1,2,3]:
+                    self.app.query_one(TabbedContent).active = f"uav{uav_id}"
         except Exception as e:
             self.app.query_one("#command_log", RichLog).write(f"命令执行错误: {e}")
 

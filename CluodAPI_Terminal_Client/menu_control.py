@@ -5,6 +5,11 @@ class MenuControl:
         self.state_count = 0
         self.writer = writer
 
+    def menu_reset(self):
+        """重置菜单状态"""
+        self.last_command = None
+        self.state_count = 0
+
     def add_control(self, key, function, description, is_states=0):
         """添加控制选项"""
         self.control_dict[key] = {
@@ -37,8 +42,10 @@ class MenuControl:
             for key, value in self.control_dict.items():
                 if user_input == key:
                     if value["is_states"] == 0:
-                        self.state_count = value["function"]()
+                        value["function"]()
                         self.writer(f"指令 {value['description']} 已发送")
+                        self.state_count = 0
+                        self.last_command = None
                     else:
                         self.state_count = value["function"](user_input, self.state_count)
                         if self.state_count != 0:
