@@ -47,13 +47,12 @@ class DJIMQTTClient:
         # Register menu controls (pass callables, do not call them here)
         self.menu.add_control("x", self.ser_puberlisher.command_request_cloud_control_authorization, "请求授权云端控制消息")
         self.menu.add_control("j", self.ser_puberlisher.command_enter_live_flight_controls_mode, "进入指令飞行控制模式")
-        self.menu.add_control("c", self.drc_controler.command_key_control, "键盘控制模式")
         self.menu.add_control("f", self.drc_controler.command_unlock, "杆位解锁无人机")
         self.menu.add_control("g", self.drc_controler.command_lock, "杆位锁定无人机")
         self.menu.add_control("h", self.drc_controler.command_flyto_height, "解锁并飞行到指定高度", is_states=1)
         self.menu.add_control("e", self.drc_controler.command_reset_camera, "重置云台", is_states=1)
         self.menu.add_control("r", self.drc_controler.command_zoom_camera, "相机变焦", is_states=1)
-        self.menu.add_control("t", self.drc_controler.command_set_camera, "设置直播镜头", is_states=1)
+        self.menu.add_control("t", self.ser_puberlisher.command_set_camera, "设置直播镜头", is_states=1)
         self.menu.add_control("y", self.ser_puberlisher.command_set_live_quality, "设置直播画质", is_states=1)
         self.menu.add_control("s", self.command_view_live_stream, "打开/关闭直播画面检测")
         self.menu.add_control("k", self.ser_puberlisher.command_start_live, "开始直播")
@@ -80,6 +79,7 @@ class DJIMQTTClient:
         client.subscribe(f"thing/product/{self.gateway_sn}/events")
         client.subscribe(f"thing/product/{self.gateway_sn}/services_reply")
         client.subscribe(f"sys/product/{self.gateway_sn}/status")
+        
     
     def on_publish(self, client, userdata, mid, reason_code, properties):
         """v2.x 版本的发布成功回调 - 5个参数"""
@@ -131,8 +131,7 @@ class DJIMQTTClient:
         message = json.loads(msg.payload.decode("utf-8"))
         method = message.get("method", None)
         if msg.topic == f"sys/product/{self.gateway_sn}/status":
-            # print(self.flight_state.device_sn)
-            if self.flight_state.device_sn == None:
+            if self.flight_state.device_sn is None:
                 if method == "update_topo":
                     data = message.get("data", None)
                     sub_devices = data.get("sub_devices", [])
@@ -170,6 +169,10 @@ class DJIMQTTClient:
             elif method == "drc_drone_state_push":
                 data = message.get("data", None)
                 self.flight_state.mode_code = data.get("mode_code", None)
+
+            elif method == "drc_batteries_info_push":
+                data = message.get("data", None)
+                self.flight_state.battery_percentage = data.get("capacity_percent", None)
                            
         elif msg.topic == f"thing/product/{self.gateway_sn}/services_reply":
             # pprint.pprint(message)

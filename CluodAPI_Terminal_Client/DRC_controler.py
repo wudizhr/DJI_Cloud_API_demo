@@ -142,19 +142,6 @@ class DRC_controler:
         self.client.publish(self.topic, payload)
         self.seq += 1
 
-    def set_live_camera_command(self, camera_type):
-        message = {
-            "data": {
-                "video_id": video_id,
-                "video_type": camera_type
-            },
-            "timestamp:": int(time.time()*100),
-            "method": "drc_live_lens_change"
-        }
-        payload = json.dumps(message)
-        self.client.publish(self.topic, payload)
-        self.seq += 1
-
     def publish_heartbeat(self):
         if self.is_beat:
             heartbeat_msg = {
@@ -234,25 +221,48 @@ class DRC_controler:
             self.main_writer("输入错误,请重新输入!")
             return state_count
 
-    def command_set_camera(self, user_input, state_count):
-        type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
-        try:
-            if state_count == 0:
-                self.main_writer(" 1:红外,2:广角,3:变焦 ")
-                return 1
-            elif state_count == 1:
-                self.user_input = user_input
-                user_input_num = int(self.user_input)
-                self.set_live_camera_command(type_dict[user_input_num])
-                return 0
-        except ValueError:
-            self.main_writer("输入错误,请重新输入!")
-            return state_count
-
     def command_change_beat_flag(self):
         self.is_beat = not self.is_beat
         self.main_writer("DRC心跳是否开启:", self.is_beat)
 
     def command_change_drc_print(self):
         self.is_print = not self.is_print
-        self.main_writer("DRC消息是否开启:", self.is_print)       
+        self.main_writer("DRC消息是否开启:", self.is_print)  
+
+    def key_control_sender(self, key, stick_value):
+        """根据按键发送对应的摇杆控制命令"""
+        roll = 1024
+        pitch = 1024
+        throttle = 1024
+        yaw = 1024
+
+        if key == 'w':
+            pitch = 1024 - stick_value  # 前倾
+        elif key == 's':
+            pitch = 1024 + stick_value  # 后倾
+        elif key == 'a':
+            roll = 1024 - stick_value   # 左倾
+        elif key == 'd':
+            roll = 1024 + stick_value   # 右倾
+        elif key == 'j':
+            throttle = 1024 + stick_value  # 油门升高
+        elif key == 'k':
+            throttle = 1024 - stick_value  # 油门降低
+        elif key == 'q':
+            yaw = 1024 - stick_value    # 左转
+        elif key == 'e':
+            yaw = 1024 + stick_value    # 右转
+        elif key == 'up':
+            roll = 1680
+            pitch = 365
+            throttle = 365
+            yaw = 365
+        elif key == 'down':
+            throttle = 365
+        else:
+            return  # 非控制按键，直接返回
+
+        self.send_stick_control_command(roll, pitch, throttle, yaw)
+
+
+        

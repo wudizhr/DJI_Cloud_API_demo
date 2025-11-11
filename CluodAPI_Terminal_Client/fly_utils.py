@@ -60,15 +60,34 @@ class Time_counter:
         return self.now_time - self.last_time
 
 class FlightState:
-    def __init__(self, lon=0, lat=0, height=0):
-        self.lon = lon
-        self.lat = lat
-        self.height = height
-        self.attitude_head = 0
-        self.mode_code = -1
-        self.takeoff_height = 0
+    mode_dict = {0:"待机",1:"起飞准备",2:"起飞准备完毕",3:"手动飞行",
+                 4:"自动起飞",5:"航线飞行",6:"全景拍照",7:"智能跟随",
+                 8:"ADS-B 躲避",9:"自动返航",10:"自动降落",11:"强制降落",
+                 12:"三桨叶降落",13:"升级中",14:"未连接",15:"APAS",
+                 16:"虚拟摇杆状态",17:"指令飞行"}
+    def __init__(self):
+        self.lon = None
+        self.lat = None
+        self.height = None
+        self.attitude_head = None
+        self.mode_code = None
+        self.takeoff_height = None
         self.battery_percentage = None
         self.device_sn = None
+
+    def get_uav_info_str(self):
+        # 将每个属性单独成行，便于在终端或 TUI 中分行显示
+        lines = [
+            f"经度: {self.lon if self.lon is not None else '未知'}",
+            f"纬度: {self.lat if self.lat is not None else '未知'}",
+            f"高度: {self.height:.2f} 米" if self.height is not None else '未知',
+            f"航向: {self.attitude_head if self.attitude_head is not None else '未知'} 度",
+            f"模式: {self.mode_dict.get(self.mode_code, '未知模式') if self.mode_code is not None else '未知'}",
+            f"电池电量: {self.battery_percentage if self.battery_percentage is not None else '未知'}%",
+            f"设备SN: {self.device_sn if self.device_sn is not None else '未知'}",
+        ]
+        return "\n".join(lines)
+
 
 def get_points_from_txt(filename, height):
     coordinates = []

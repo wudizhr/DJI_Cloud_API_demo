@@ -237,6 +237,18 @@ class Ser_puberlisher:
         self.flyto_num += 1
         self.flyto_id = f"flyto_{self.gateway_sn}_{self.flyto_num}"
 
+    def set_live_camera_command(self, camera_type):
+        message = {
+            "data": {
+                "video_id": f"{self.flight_state.device_sn}/88-0-0/normal-0",
+                "video_type": camera_type
+            },
+            "timestamp": int(time.time()*100),
+            "method": "live_lens_change"
+        }
+        payload = json.dumps(message)
+        self.client.publish(self.topic, payload)
+
     def connect_to_remoter(self):
         self.publish_request_cloud_control_authorization()
         time.sleep(0.1)
@@ -267,6 +279,21 @@ class Ser_puberlisher:
                 self.user_input = user_input
                 quality_level = int(self.user_input)
                 self.publish_live_set_quality(quality_level)
+                return 0
+        except ValueError:
+            self.main_writer("输入错误,请重新输入!")
+            return state_count
+        
+    def command_set_camera(self, user_input, state_count):
+        type_dict = {1:"thermal", 2:"wide", 3:"zoom"}
+        try:
+            if state_count == 0:
+                self.main_writer(" 1:红外,2:广角,3:变焦 ")
+                return 1
+            elif state_count == 1:
+                self.user_input = user_input
+                user_input_num = int(self.user_input)
+                self.set_live_camera_command(type_dict[user_input_num])
                 return 0
         except ValueError:
             self.main_writer("输入错误,请重新输入!")

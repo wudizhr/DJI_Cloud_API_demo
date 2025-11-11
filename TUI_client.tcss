@@ -13,11 +13,11 @@
 .menu-item {
     height: 1fr;
     width: 1fr;
-    border: solid red;
+    border: solid yellow;
 }
 
 .menu-print {
-    height: auto;
+    height: 1fr;
     width: 1fr;
     border: solid blue;
 }
