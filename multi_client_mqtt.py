@@ -25,7 +25,7 @@ class MAIN_CONTROL_Client:
         self.main_menu = MenuControl(writer=self.main_log.write if self.main_log else print) 
         # Register main_menu controls (pass callables, do not call them here)
         self.main_menu.add_control("b", self.request_cloud_control, "连接三个遥控器")
-        self.main_menu.add_control("c", self.request_DRC_control, "三个遥控器进入指令飞行模式")
+        self.main_menu.add_control("f", self.request_DRC_control, "三个遥控器进入指令飞行模式")
         self.main_menu.add_control("d", self.DRC_start_live, "发送开启直播请求", is_states=1)
         self.main_menu.add_control("e", self.DRC_stop_live, "发送关闭直播请求", is_states=1)
         self.main_menu.add_control("1", self.mission_1, "原地起飞", is_states=1)

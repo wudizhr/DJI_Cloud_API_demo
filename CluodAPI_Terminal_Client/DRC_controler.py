@@ -91,15 +91,15 @@ class DRC_controler:
             last = time.time()
             initial_height = self.flight_state.height 
             self.flight_state.takeoff_height = initial_height
-            while self.flight_state.height - initial_height < height:
+            while self.flight_state.elevation < height:
                 now = time.time()
                 self.send_stick_control_command(1024, 1024, 1024 + stick_vlaue, 1024)
-                if self.flight_state.height - initial_height < height/10 and now - last > 10:
+                if self.flight_state.elevation < height/10 and now - last > 10:
                     self.writer(f"无人机{self.gateway_sn}响应超时,请检查连接状态")
                     break
                 time.sleep(interval)
             else:
-                self.writer(f"无人机{self.gateway_sn} 已飞行至指定高度,相对高度{self.flight_state.height - initial_height}米")
+                self.writer(f"无人机{self.gateway_sn} 已飞行至指定高度,相对起飞高度{self.flight_state.elevation}米")
 
         thread = threading.Thread(target=send_commands)
         thread.daemon = True

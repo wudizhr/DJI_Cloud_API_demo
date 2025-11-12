@@ -2,7 +2,6 @@ import os
 import json
 import time
 import threading
-import multiprocessing
 import sys
 import paho
 import paho.mqtt.client as mqtt
@@ -10,7 +9,7 @@ from CluodAPI_Terminal_Client.DRC_controler import DRC_controler
 from CluodAPI_Terminal_Client.fly_utils import FlightState, Time_counter
 from CluodAPI_Terminal_Client.services_publisher import Ser_puberlisher
 from CluodAPI_Terminal_Client.menu_control import MenuControl
-from stream_predict import extract_frames_from_rtmp, StreamPredictor
+from stream_predict import StreamPredictor
 from textual.widgets import RichLog
 
 host_addr = os.environ["HOST_ADDR"]
@@ -149,7 +148,8 @@ class DJIMQTTClient:
                 self.flight_state.lat = data.get("latitude", None)
                 self.flight_state.height = data.get("height", None)
                 self.flight_state.attitude_head = data.get("attitude_head", None)
-                line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height}, attitude_head: {self.flight_state.attitude_head}"
+                self.flight_state.elevation = data.get("elevation", None)
+                line = f"🌍 OSD Info - gateway_sn: {self.gateway_sn}, Lat: {self.flight_state.lat}, Lon: {self.flight_state.lon} , height: {self.flight_state.height}, attitude_head: {self.flight_state.attitude_head}, elevation: {self.flight_state.elevation}"
                 if self.DEBUG_FLAG:
                     self.per_log.write(line)
                 if self.SAVE_FLAG:

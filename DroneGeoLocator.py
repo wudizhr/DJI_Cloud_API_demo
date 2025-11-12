@@ -23,6 +23,13 @@ class DroneGeoLocator:
             'left': 0.0, 'top': 0.0, 
             'right': 1.0, 'bottom': 1.0
         }
+
+        self.set_liveview_region(
+            bottom = 0.57754391431808472,
+            left = 0.41962304711341858,
+            right = 0.584352672100067,
+            top = 0.41050803661346436
+        )
         
         print(f"初始化完成: 传感器 {sensor_width_mm}×{sensor_height_mm}mm, 焦距 {focal_length_mm}mm")
     
@@ -131,7 +138,7 @@ class DroneGeoLocator:
 # 使用示例
 if __name__ == "__main__":
     # 初始化定位器
-    locator = EnhancedDroneGeoLocator(
+    locator = DroneGeoLocator(
         sensor_width_mm=8.5,
         sensor_height_mm=6.4, 
         focal_length_mm=168.0,

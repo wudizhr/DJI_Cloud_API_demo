@@ -67,7 +67,7 @@ class StreamPredictor:
             image_width_px=8000,      # 4K图像宽度
             image_height_px=6000      # 4K图像高度
         ) 
-        self.flight_state = flight_state or FlightState()
+        self.flight_state = flight_state
         self.writer = writer
 
     # --- 推理相关 ---
@@ -75,7 +75,7 @@ class StreamPredictor:
         detections = []
         try:
             # drone 专注模型
-            result_drone = self.model_drone(frame, imgsz=512, verbose=False, conf=0.5, classes=self.drone_classes)
+            result_drone = self.model_drone(frame, imgsz=512, verbose=False, conf=0.7, classes=self.drone_classes)
             for box in result_drone[0].boxes:
                 cls_id = int(box.cls[0]); conf = float(box.conf[0])
                 x1, y1, x2, y2 = [int(v) for v in box.xyxy[0]]
@@ -138,18 +138,22 @@ class StreamPredictor:
                 display = frame.copy()
                 info_fps = f"FPS: {self.fps_counter.get_fps()}"
                 info_inference_fps = f"Inference FPS: {self.inference_fps_counter.get_fps()}"
+                info_resolution = f"Resolution: {self.locator.image_width}x{self.locator.image_height}"
                 (w1, h1), _ = cv2.getTextSize(info_fps, font, scale, thickness)
                 (w2, h2), _ = cv2.getTextSize(info_inference_fps, font, scale, thickness)
-                rect_w = max(w1, w2) + margin * 2
-                rect_h = h1 + h2 + margin * 4
+                (w3, h3), _ = cv2.getTextSize(info_resolution, font, scale, thickness)
+                rect_w = max(w1, w2, w3) + margin * 2
+                rect_h = h1 + h2 + h3 + margin * 4
                 cv2.rectangle(display, (5, 5), (5 + rect_w, 5 + rect_h), (0, 0, 0), -1)
                 cv2.putText(display, info_fps, (10, 10 + h1), font, scale, (0, 255, 0), thickness)
                 cv2.putText(display, info_inference_fps, (10, 10 + h1 + h2 + margin), font, scale, (0, 255, 255), thickness)
+                cv2.putText(display, info_resolution, (10, 10 + h1 + h2 + h3 + margin * 2), font, scale, (255, 255, 0), thickness)
+                # 获取最新检测结果
                 with self.out_lock:
                     detections = list(self.shared.get('detections', []))
                 if detections:
                     if self.show_window:
-                        draw_detections(display, detections) 
+                        self.draw_detections(display, detections) 
                     self.get_target_pos(detections)                
                 # 将帧送入推理队列（非阻塞）
                 try:
@@ -210,9 +214,28 @@ class StreamPredictor:
 
     def get_target_pos(self, detections):
         """Draw detections on a frame (in-place)."""
-        if self.flight_state.lat is None or self.flight_state.lon is None:
-            self.writer("无人机GPS位置未知，无法计算目标经纬度")
-            return
+        if self.flight_state is not None:
+            if self.flight_state.lat is None or self.flight_state.lon is None:
+                self.writer("无人机GPS位置未知，无法计算目标经纬度")
+                return
+            for det in detections:
+                x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
+                center_point_x = int(x1 + (x2 - x1) / 2)
+                center_point_y = int(y1 + (y2 - y1) / 2)
+                label = det['label']
+                conf = det['conf']
+                display_text = f"{label} {conf:.2f}"
+                target_lat, target_lon = self.locator.pixel_to_geo_coordinates(
+                    self.flight_state.lat, self.flight_state.lon,
+                    self.flight_state.elevation,
+                    center_point_x, center_point_y, self.flight_state.attitude_head
+                )
+                self.writer(f"像素偏移: dx={center_point_x:.1f}, dy={center_point_y:.1f} 像素")
+                self.writer(f"检测到 {display_text} at (lat: {target_lat}, lon: {target_lon})")
+                self.writer(f"无人机当前位置 (lat: {self.flight_state.lat}, lon: {self.flight_state.lon}, alt: {self.elevation} m, head: {self.flight_state.attitude_head}°)")
+
+    def draw_detections(self, frame, detections):
+        """Draw detections on a frame (in-place)."""
         for det in detections:
             x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
             center_point_x = int(x1 + (x2 - x1) / 2)
@@ -220,43 +243,25 @@ class StreamPredictor:
             label = det['label']
             conf = det['conf']
             display_text = f"{label} {conf:.2f}"
-            target_lat, target_lon = self.locator.pixel_to_geo_coordinates(
-                self.flight_state.lat, self.flight_state.lon,
-                (self.flight_state.height - self.flight_state.takeoff_height),
-                center_point_x, center_point_y, self.flight_state.attitude_head
-            )
-            self.writer(f"像素偏移: dx={center_point_x:.1f}, dy={center_point_y:.1f} 像素")
-            self.writer(f"检测到 {display_text} at (lat: {target_lat}, lon: {target_lon})")
-            self.writer(f"无人机当前位置 (lat: {self.flight_state.lat}, lon: {self.flight_state.lon}, alt: {self.flight_state.height - self.flight_state.takeoff_height} m, head: {self.flight_state.attitude_head}°)")
-
-def draw_detections(frame, detections):
-    """Draw detections on a frame (in-place)."""
-    for det in detections:
-        x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
-        center_point_x = int(x1 + (x2 - x1) / 2)
-        center_point_y = int(y1 + (y2 - y1) / 2)
-        label = det['label']
-        conf = det['conf']
-        display_text = f"{label} {conf:.2f}"
-        # Draw bounding box and label
-        if label == 'person':
-            rgb = (0, 255, 0)
-        elif label == 'car':
-            rgb = (255, 0, 0)
-        else:
-            rgb = (0, 0, 255)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), rgb, 2)
-        cv2.line(frame, (center_point_x, y1), (center_point_x, y2), rgb, 2)
-        cv2.line(frame, (x1, center_point_y), (x2, center_point_y), rgb, 2)
-        cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        # print(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
+            # Draw bounding box and label
+            if label == 'person':
+                rgb = (0, 255, 0)
+            elif label == 'car':
+                rgb = (255, 0, 0)
+            else:
+                rgb = (0, 0, 255)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), rgb, 2)
+            cv2.line(frame, (center_point_x, y1), (center_point_x, y2), rgb, 2)
+            cv2.line(frame, (x1, center_point_y), (x2, center_point_y), rgb, 2)
+            cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            self.writer(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
 
 def extract_frames_from_rtmp(rtmp_url: str, show_window : bool = True, flight_state: FlightState = None, writer=print):
     """向后兼容的包装函数，内部改用 StreamPredictor。"""
     predictor = StreamPredictor(rtmp_url, show_window=show_window, flight_state=flight_state, writer=writer)
+    # print(predictor.flight_state == None)
     predictor.run()
-
-
+ 
 if __name__ == "__main__":
     # 直接运行类版本
-    extract_frames_from_rtmp(source)
+    extract_frames_from_rtmp(rtmp_url="rtmp://81.70.222.38:1935/live/Drone003")

@@ -74,13 +74,15 @@ class FlightState:
         self.takeoff_height = None
         self.battery_percentage = None
         self.device_sn = None
+        self.elevation = None
 
     def get_uav_info_str(self):
         # 将每个属性单独成行，便于在终端或 TUI 中分行显示
         lines = [
             f"经度: {self.lon if self.lon is not None else '未知'}",
             f"纬度: {self.lat if self.lat is not None else '未知'}",
-            f"高度: {self.height:.2f} 米" if self.height is not None else '未知',
+            f"高度: {self.height:.2f} 米" if self.height is not None else '高度: 未知',
+            f"相对起飞高度: {self.elevation:.2f} 米" if self.elevation is not None else '相对起飞高度: 未知',
             f"航向: {self.attitude_head if self.attitude_head is not None else '未知'} 度",
             f"模式: {self.mode_dict.get(self.mode_code, '未知模式') if self.mode_code is not None else '未知'}",
             f"电池电量: {self.battery_percentage if self.battery_percentage is not None else '未知'}%",
