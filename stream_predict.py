@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+import os
 from fps_counter import FPSCounter
 import logging
 import threading
@@ -35,7 +36,9 @@ class StreamPredictor:
         show_window: bool = True,
         stop_event=None,
         flight_state: FlightState = None,
-        writer=print
+        writer=print,
+        save_video: bool = False,
+        save_path: str = "out/output.mp4",
     ) -> None:
         self.rtmp_url = rtmp_url
         self.window_name = window_name
@@ -69,6 +72,14 @@ class StreamPredictor:
         ) 
         self.flight_state = flight_state
         self.writer = writer
+        # 视频保存配置
+        self.save_video = save_video
+        self.save_path = save_path
+        self.video_writer: cv2.VideoWriter | None = None
+
+        # 可由外部随时更新的实时 zoom/fov 与 liveview 信息（例如从无人机上报）
+        self.latest_fov_info = None
+        self.latest_liveview = None
 
     # --- 推理相关 ---
     def _run_inference_on_frame(self, frame):
@@ -126,6 +137,25 @@ class StreamPredictor:
         self.locator.image_height = frame.shape[0]
         self.locator.image_width = frame.shape[1]
         self.writer(f"视频分辨率: {self.locator.image_width}x{self.locator.image_height}")
+        # 初始化视频写入器（如果需要保存）
+        if self.save_video:
+            # 确保目录存在
+            save_dir = os.path.dirname(self.save_path)
+            if save_dir and not os.path.exists(save_dir):
+                try:
+                    os.makedirs(save_dir, exist_ok=True)
+                except Exception as e:
+                    self.writer(f"无法创建保存目录 {save_dir}: {e}")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            try:
+                self.video_writer = cv2.VideoWriter(self.save_path, fourcc, float(30), (self.locator.image_width, self.locator.image_height))
+                if not self.video_writer.isOpened():
+                    self.writer(f"视频写入器无法打开，保存功能将被禁用: {self.save_path}")
+                    self.video_writer = None
+                else:
+                    self.writer(f"开始保存视频到: {self.save_path} @ 30 fps")
+            except Exception as e:
+                self.writer(f"初始化视频写入器失败: {e}")
         self._start_worker()
         font = cv2.FONT_HERSHEY_SIMPLEX; scale = 0.8; thickness = 2; margin = 6
         try:
@@ -165,6 +195,13 @@ class StreamPredictor:
                     cv2.imshow(self.window_name, display)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
+                # 写入视频（如果启用）
+                if self.save_video and self.video_writer is not None:
+                    try:
+                        # 写入原始分辨率帧（frame）以避免缩放问题
+                        self.video_writer.write(display)
+                    except Exception:
+                        pass
         except KeyboardInterrupt:
             self.writer("用户中断提取过程")
         except Exception as e:
@@ -183,6 +220,13 @@ class StreamPredictor:
             pass
         if self.cap:
             self.cap.release()
+        # 释放视频写入器并提示保存路径
+        try:
+            if self.video_writer:
+                self.video_writer.release()
+                self.writer(f"已保存视频到: {self.save_path}")
+        except Exception:
+            pass
         if self.show_window:
             try:
                 cv2.destroyAllWindows()
@@ -225,14 +269,25 @@ class StreamPredictor:
                 label = det['label']
                 conf = det['conf']
                 display_text = f"{label} {conf:.2f}"
+                # 将最新的 fov_info / liveview（如果有）传入定位器进行更精确的计算
                 target_lat, target_lon = self.locator.pixel_to_geo_coordinates(
                     self.flight_state.lat, self.flight_state.lon,
                     self.flight_state.elevation,
-                    center_point_x, center_point_y, self.flight_state.attitude_head
+                    center_point_x, center_point_y, self.flight_state.attitude_head,
+                    fov_info=self.latest_fov_info, liveview_region=self.latest_liveview
                 )
                 self.writer(f"像素偏移: dx={center_point_x:.1f}, dy={center_point_y:.1f} 像素")
                 self.writer(f"检测到 {display_text} at (lat: {target_lat}, lon: {target_lon})")
-                self.writer(f"无人机当前位置 (lat: {self.flight_state.lat}, lon: {self.flight_state.lon}, alt: {self.elevation} m, head: {self.flight_state.attitude_head}°)")
+                self.writer(f"无人机当前位置 (lat: {self.flight_state.lat}, lon: {self.flight_state.lon}, alt: {self.flight_state.elevation} m, head: {self.flight_state.attitude_head}°)")
+
+    # ---- API: 更新实时 fov / liveview 信息 ----
+    def update_fov_info(self, fov_info: dict):
+        """外部调用以更新最新的 zoom_fov_info，如来自无人机上报数据。"""
+        self.latest_fov_info = fov_info
+
+    def update_liveview(self, liveview_region: dict):
+        """外部调用以更新最新的 liveview_region（标准化 left/top/right/bottom）。"""
+        self.latest_liveview = liveview_region
 
     def draw_detections(self, frame, detections):
         """Draw detections on a frame (in-place)."""
@@ -256,12 +311,12 @@ class StreamPredictor:
             cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             self.writer(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
 
-def extract_frames_from_rtmp(rtmp_url: str, show_window : bool = True, flight_state: FlightState = None, writer=print):
+def extract_frames_from_rtmp(rtmp_url: str, save_video : bool = False, show_window : bool = True, flight_state: FlightState = None, writer=print):
     """向后兼容的包装函数，内部改用 StreamPredictor。"""
-    predictor = StreamPredictor(rtmp_url, show_window=show_window, flight_state=flight_state, writer=writer)
+    predictor = StreamPredictor(rtmp_url, save_video=save_video, show_window=show_window, flight_state=flight_state, writer=writer)
     # print(predictor.flight_state == None)
     predictor.run()
  
 if __name__ == "__main__":
     # 直接运行类版本
-    extract_frames_from_rtmp(rtmp_url="rtmp://81.70.222.38:1935/live/Drone003")
+    extract_frames_from_rtmp(rtmp_url="rtmp://81.70.222.38:1935/live/Drone001", save_video=True)

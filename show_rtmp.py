@@ -48,7 +48,7 @@ except Exception:
 def parse_args(argv=None):
 	p = argparse.ArgumentParser(description="RTMP/视频流显示工具")
 	# 默认 URL 设置为用户指定的 Drone003
-	p.add_argument("--url", default="rtmp://81.70.222.38:1935/live/Drone003", help="RTMP/HTTP/HLS/本地文件路径 (默认: Drone003)")
+	p.add_argument("--url", default="rtmp://81.70.222.38:1935/live/Drone001", help="RTMP/HTTP/HLS/本地文件路径 (默认: Drone003)")
 	p.add_argument("--reconnect", action="store_true", help="断流后自动重连")
 	p.add_argument("--max-retries", type=int, default=0, help="最大重连次数(0=无限)")
 	p.add_argument("--retry-interval", type=float, default=3.0, help="重连间隔秒数")
