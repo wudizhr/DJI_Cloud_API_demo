@@ -8,6 +8,9 @@ import queue
 import time
 from DroneGeoLocator import DroneGeoLocator
 from CluodAPI_Terminal_Client.fly_utils import FlightState
+import paho
+import paho.mqtt.client as mqtt
+import json
 
 logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
@@ -39,7 +42,9 @@ class StreamPredictor:
         writer=print,
         save_video: bool = False,
         save_path: str = "out/output.mp4",
+        is_get_pos: bool = False,
     ) -> None:
+        self.is_get_pos = is_get_pos
         self.rtmp_url = rtmp_url
         self.window_name = window_name
         self.show_window = show_window
@@ -94,7 +99,7 @@ class StreamPredictor:
                 detections.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "label": label, "conf": conf})
 
             # 通用模型
-            results_normal = self.model_normal(frame, classes=self.normal_classes, imgsz=512, verbose=False, vid_stride=1, conf=0.3)
+            results_normal = self.model_normal(frame, classes=self.normal_classes, imgsz=512, verbose=False, vid_stride=1, conf=0.5)
             for box in results_normal[0].boxes:
                 cls_id = int(box.cls[0]); conf = float(box.conf[0])
                 x1, y1, x2, y2 = [int(v) for v in box.xyxy[0]]
@@ -184,7 +189,8 @@ class StreamPredictor:
                 if detections:
                     if self.show_window:
                         self.draw_detections(display, detections) 
-                    self.get_target_pos(detections)                
+                    if self.is_get_pos:
+                        self.get_target_pos(detections)                
                 # 将帧送入推理队列（非阻塞）
                 try:
                     self.frame_queue.put_nowait(frame.copy())
@@ -309,7 +315,7 @@ class StreamPredictor:
             cv2.line(frame, (center_point_x, y1), (center_point_x, y2), rgb, 2)
             cv2.line(frame, (x1, center_point_y), (x2, center_point_y), rgb, 2)
             cv2.putText(frame, display_text, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            self.writer(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
+            # self.writer(f"检测到 {display_text} at ({center_point_x}, {center_point_y})")
 
 def extract_frames_from_rtmp(rtmp_url: str, save_video : bool = False, show_window : bool = True, flight_state: FlightState = None, writer=print):
     """向后兼容的包装函数，内部改用 StreamPredictor。"""
@@ -319,4 +325,32 @@ def extract_frames_from_rtmp(rtmp_url: str, save_video : bool = False, show_wind
  
 if __name__ == "__main__":
     # 直接运行类版本
-    extract_frames_from_rtmp(rtmp_url="rtmp://81.70.222.38:1935/live/Drone001", save_video=True)
+    # extract_frames_from_rtmp(rtmp_url="rtmp://81.70.222.38:1935/live/Drone001", save_video=True)
+    host_addr = os.environ["HOST_ADDR"]
+    username = os.environ["USERNAME"]
+    password = os.environ["PASSWORD"]
+    client = mqtt.Client(paho.mqtt.enums.CallbackAPIVersion.VERSION2, transport="tcp")
+    client.username_pw_set(f"{username}", password)
+    client.on_connect = lambda client, userdata, flags, rc, properties=None: print("Connected with result code "+str(rc))
+    def client_start():
+        client.connect(host_addr, 1883, 60)
+        client.loop_forever()
+    thread = threading.Thread(target=client_start)
+    thread.daemon = True
+    thread.start()
+
+    predictor = StreamPredictor(rtmp_url="rtmp://81.70.222.38:1935/live/Drone001", is_get_pos=False, drone_classes=(), normal_classes=(0,))
+    predictor.start_in_thread(daemon=True)
+
+    while True:
+        detections = predictor.get_latest_detections()
+        if detections:
+            for det in detections:
+                if det['label']=='person':
+                    message = {"detected": True,
+                               "timestamp": time.time()}
+                    # MQTT payload must be a string/bytes/number; serialize dict to JSON
+                    payload = json.dumps(message)
+                    client.publish("indoor/target/detection", payload)
+                    print("indoor/target/detection", "payload=", payload)
+        time.sleep(0.5)
